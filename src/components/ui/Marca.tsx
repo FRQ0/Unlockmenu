@@ -1,0 +1,24 @@
+// Marca Unlock Menu: usada SÓ no site de vendas, login e painéis internos.
+export function IconeMarca({ size = 32, className = "" }: { size?: number; className?: string }) {
+  return (
+    <svg viewBox="0 0 64 64" width={size} height={size} className={className} aria-hidden>
+      <rect width="64" height="64" rx="16" fill="#17181C" />
+      <path fill="#C8A574" d="M32 11.5c-1.8 0-3.2 1.4-3.2 3.2v1.2C22.3 17.4 17.6 23.1 17.6 30v8.6l-3.9 5v2.6h36.6v-2.6l-3.9-5V30c0-6.9-4.7-12.6-11.2-14.1v-1.2c0-1.8-1.4-3.2-3.2-3.2z" />
+      <path fill="#C8A574" d="M26.6 48.6h10.8a5.4 5.4 0 0 1-10.8 0z" />
+      <circle cx="32" cy="29.4" r="3.7" fill="#17181C" />
+      <path fill="#17181C" d="M30.1 31.6h3.8l1.1 7.4h-6z" />
+    </svg>
+  );
+}
+
+export function LogoMarca({ escuro = false, size = 32 }: { escuro?: boolean; size?: number }) {
+  return (
+    <span className="inline-flex items-center gap-2.5" aria-label="Unlock Menu">
+      <IconeMarca size={size} />
+      <span className="font-extrabold tracking-tight" style={{ fontSize: size * 0.62 }}>
+        <span className={escuro ? "text-papel" : "text-carvao"}>unlock</span>
+        <span className={escuro ? "text-areia" : "text-areia-escura"}> menu</span>
+      </span>
+    </span>
+  );
+}

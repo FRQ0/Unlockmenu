@@ -1,0 +1,350 @@
+"use client";
+// Painel do garçom: tempo real (Supabase Realtime + RLS), som, vibração, cronômetro,
+// alerta de atraso e filtro por setor. Recursos ligados conforme o plano (definido no servidor).
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Bell, BellRing, Check, Footprints, Receipt, TriangleAlert, Volume2, Wifi, WifiOff } from "lucide-react";
+import { autenticarRealtime, realtimeClient } from "@/lib/supabase/browser";
+import { cronometro, minutosDesde } from "@/lib/format";
+import { audioPronto, liberarAudio, tocar } from "./som";
+
+type Mesa = { id: string; nome: string; area: string | null; ocupada: boolean };
+type Chamado = { id: string; table_id: string; tipo: "garcom" | "conta"; status: "aberto" | "a_caminho"; criado_em: string; aceito_nome: string | null };
+type Salao = { mesas: Mesa[]; chamados: Chamado[] };
+
+type Props = {
+  tenantId: string;
+  inicial: Salao;
+  recursos: { grade: boolean; som: boolean; setores: boolean; push: boolean; alertaGerente: boolean };
+  alertaMinutos: number;
+  gerente: boolean;
+  podeAtender: boolean;
+  meusSetores: string[];
+  vapid: string;
+};
+
+function b64ToUint8(b64: string) {
+  const pad = "=".repeat((4 - (b64.length % 4)) % 4);
+  const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+}
+
+export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, gerente, podeAtender, meusSetores, vapid }: Props) {
+  const [salao, setSalao] = useState<Salao>(inicial);
+  const [agora, setAgora] = useState(() => Date.now());
+  const [online, setOnline] = useState(true);
+  const [somOn, setSomOn] = useState(false);
+  const [pushOn, setPushOn] = useState<"nao" | "sim" | "negado">("nao");
+  const [setor, setSetor] = useState<string>("__todos");
+  const [selecionada, setSelecionada] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState<string | null>(null);
+  const conhecidos = useRef<Set<string>>(new Set(inicial.chamados.map((c) => c.id)));
+  const alertados = useRef<Set<string>>(new Set());
+
+  // relógio do cronômetro
+  useEffect(() => {
+    const t = setInterval(() => setAgora(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  // setor salvo / setores do funcionário
+  useEffect(() => {
+    if (!recursos.setores) return;
+    try {
+      const s = localStorage.getItem("setor");
+      if (s) setSetor(s);
+      else if (meusSetores.length === 1) setSetor(meusSetores[0]);
+    } catch {}
+  }, [recursos.setores, meusSetores]);
+
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "denied") setPushOn("negado");
+    navigator.serviceWorker?.ready
+      .then((r) => r.pushManager.getSubscription())
+      .then((s) => s && setPushOn("sim"))
+      .catch(() => {});
+  }, []);
+
+  const recarregar = useCallback(async () => {
+    try {
+      const r = await fetch("/api/app/garcom/estado", { cache: "no-store" });
+      if (r.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      if (!r.ok) throw new Error();
+      const novo = (await r.json()) as Salao;
+      // novos chamados → som + vibração
+      const novos = novo.chamados.filter((c) => c.status === "aberto" && !conhecidos.current.has(c.id));
+      novo.chamados.forEach((c) => conhecidos.current.add(c.id));
+      if (novos.length) {
+        if (recursos.som && audioPronto()) tocar(novos.some((c) => c.tipo === "conta") ? "conta" : "chamado");
+        navigator.vibrate?.([200, 100, 200]);
+      }
+      setSalao(novo);
+      setOnline(true);
+    } catch {
+      setOnline(false);
+    }
+  }, [recursos.som]);
+
+  // tempo real + rede de segurança (consulta a cada 15 s)
+  useEffect(() => {
+    let vivo = true;
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+    const agendar = () => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(recarregar, 150);
+    };
+    const sb = realtimeClient();
+    const canal = sb.channel(`salao-${tenantId}`);
+    (async () => {
+      await autenticarRealtime();
+      if (!vivo) return;
+      canal
+        .on("postgres_changes", { event: "*", schema: "public", table: "calls", filter: `tenant_id=eq.${tenantId}` }, agendar)
+        .on("postgres_changes", { event: "*", schema: "public", table: "sessions", filter: `tenant_id=eq.${tenantId}` }, agendar)
+        .subscribe((st) => setOnline(st === "SUBSCRIBED"));
+    })();
+    const poll = setInterval(recarregar, 15_000);
+    const renovar = setInterval(autenticarRealtime, 45 * 60_000);
+    const vis = () => document.visibilityState === "visible" && recarregar();
+    document.addEventListener("visibilitychange", vis);
+    return () => {
+      vivo = false;
+      clearInterval(poll);
+      clearInterval(renovar);
+      document.removeEventListener("visibilitychange", vis);
+      sb.removeChannel(canal);
+    };
+  }, [tenantId, recarregar]);
+
+  // alerta de atraso (gerente/dono, plano Completo)
+  useEffect(() => {
+    if (!recursos.alertaGerente || !gerente) return;
+    for (const c of salao.chamados) {
+      if (c.status === "aberto" && minutosDesde(c.criado_em, agora) >= alertaMinutos && !alertados.current.has(c.id)) {
+        alertados.current.add(c.id);
+        if (somOn) tocar("atraso");
+        navigator.vibrate?.([400, 150, 400]);
+      }
+    }
+  }, [agora, salao.chamados, recursos.alertaGerente, gerente, alertaMinutos, somOn]);
+
+  async function ativarSom() {
+    setSomOn(await liberarAudio());
+    tocar("chamado");
+  }
+
+  async function ativarPush() {
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") {
+        setPushOn("negado");
+        return;
+      }
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToUint8(vapid) });
+      const j = sub.toJSON();
+      const r = await fetch("/api/app/push", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: j.endpoint, keys: j.keys }),
+      });
+      if (r.ok) setPushOn("sim");
+    } catch {
+      setPushOn("negado");
+    }
+  }
+
+  async function atualizar(id: string, status: "a_caminho" | "atendido") {
+    setOcupado(id);
+    try {
+      await fetch(`/api/app/chamados/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+      await recarregar();
+    } finally {
+      setOcupado(null);
+      setSelecionada(null);
+    }
+  }
+
+  async function liberar(mesaId: string) {
+    setOcupado(mesaId);
+    await fetch(`/api/app/mesas/${mesaId}/liberar`, { method: "POST" });
+    await recarregar();
+    setOcupado(null);
+    setSelecionada(null);
+  }
+
+  const areas = useMemo(() => Array.from(new Set(salao.mesas.map((m) => m.area).filter((a): a is string => !!a))).sort(), [salao.mesas]);
+  const mesasVisiveis = useMemo(
+    () => salao.mesas.filter((m) => !recursos.setores || setor === "__todos" || m.area === setor),
+    [salao.mesas, setor, recursos.setores],
+  );
+  const idsVisiveis = new Set(mesasVisiveis.map((m) => m.id));
+  const nomeMesa = new Map(salao.mesas.map((m) => [m.id, m.nome]));
+  const chamados = salao.chamados.filter((c) => idsVisiveis.has(c.table_id));
+  const chamadoDaMesa = new Map(chamados.map((c) => [c.table_id, c]));
+  const atrasados = chamados.filter((c) => c.status === "aberto" && minutosDesde(c.criado_em, agora) >= alertaMinutos);
+
+  function escolherSetor(s: string) {
+    setSetor(s);
+    try {
+      localStorage.setItem("setor", s);
+    } catch {}
+  }
+
+  const sel = selecionada ? salao.mesas.find((m) => m.id === selecionada) : null;
+  const selChamado = sel ? chamadoDaMesa.get(sel.id) : undefined;
+
+  return (
+    <main className="mx-auto max-w-6xl p-4 lg:p-8">
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="text-2xl font-extrabold tracking-tight">Salão</h1>
+        <span className={`flex items-center gap-1.5 text-xs font-semibold ${online ? "text-estado-verde" : "text-estado-vermelho"}`}>
+          {online ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />} {online ? "Ao vivo" : "Reconectando..."}
+        </span>
+        <div className="ml-auto flex flex-wrap gap-2">
+          {recursos.som && !somOn && (
+            <button onClick={ativarSom} className="btn-primario"><Volume2 className="h-4 w-4" /> Ativar som</button>
+          )}
+          {recursos.push && pushOn === "nao" && (
+            <button onClick={ativarPush} className="btn-secundario"><BellRing className="h-4 w-4" /> Avisar com o app fechado</button>
+          )}
+          {recursos.push && pushOn === "negado" && <span className="text-xs text-grafite">Notificações bloqueadas no navegador</span>}
+        </div>
+      </div>
+
+      {recursos.setores && areas.length > 0 && (
+        <div className="no-scrollbar mt-4 flex gap-2 overflow-x-auto">
+          {["__todos", ...areas].map((a) => (
+            <button
+              key={a}
+              onClick={() => escolherSetor(a)}
+              className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold ${setor === a ? "bg-carvao text-papel" : "bg-white shadow-suave"}`}
+            >
+              {a === "__todos" ? "Todos os setores" : a}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {gerente && recursos.alertaGerente && atrasados.length > 0 && (
+        <div role="alert" className="mt-4 flex items-center gap-3 rounded-2xl bg-estado-vermelho p-4 text-white">
+          <TriangleAlert className="h-6 w-6 shrink-0" />
+          <p className="text-sm font-semibold">
+            {atrasados.map((c) => `${nomeMesa.get(c.table_id)} (${minutosDesde(c.criado_em, agora)} min)`).join(", ")} sem atendimento há mais de {alertaMinutos} min.
+          </p>
+        </div>
+      )}
+
+      {/* chamados abertos */}
+      <section className="mt-6">
+        <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-grafite">Chamados ({chamados.length})</h2>
+        {chamados.length === 0 ? (
+          <p className="card p-6 text-center text-sm text-grafite">Nenhuma mesa chamando agora.</p>
+        ) : (
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {chamados.map((c) => {
+              const atrasado = minutosDesde(c.criado_em, agora) >= alertaMinutos && c.status === "aberto";
+              return (
+                <li key={c.id} className={`card overflow-hidden ${atrasado ? "ring-2 ring-estado-vermelho" : ""}`}>
+                  <div className={`flex items-center gap-3 px-4 py-3 text-white ${atrasado ? "bg-estado-vermelho" : c.tipo === "conta" ? "bg-estado-azul" : "bg-estado-laranja"}`}>
+                    {c.tipo === "conta" ? <Receipt className="h-5 w-5" /> : <Bell className="h-5 w-5" />}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-lg font-extrabold leading-tight">{nomeMesa.get(c.table_id)}</p>
+                      <p className="text-xs font-semibold opacity-90">{c.tipo === "conta" ? "Pediu a conta" : "Chamando garçom"}</p>
+                    </div>
+                    <span className="font-mono text-lg font-bold tabular-nums">{cronometro(c.criado_em, agora)}</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-3">
+                    {c.status === "a_caminho" ? (
+                      <span className="flex flex-1 items-center gap-1.5 text-sm font-semibold text-estado-verde">
+                        <Footprints className="h-4 w-4" /> {c.aceito_nome ?? "Alguém"} a caminho
+                      </span>
+                    ) : podeAtender ? (
+                      <button disabled={ocupado === c.id} onClick={() => atualizar(c.id, "a_caminho")} className="btn-escuro flex-1">
+                        <Footprints className="h-4 w-4" /> Estou indo
+                      </button>
+                    ) : (
+                      <span className="flex-1 text-sm text-grafite">Aguardando</span>
+                    )}
+                    {podeAtender && (
+                      <button disabled={ocupado === c.id} onClick={() => atualizar(c.id, "atendido")} className="btn-secundario flex-1">
+                        <Check className="h-4 w-4" /> Atendido
+                      </button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      {/* grade de mesas (Profissional e Completo) */}
+      {recursos.grade && (
+        <section className="mt-8">
+          <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold text-grafite">
+            <h2 className="mr-auto font-bold uppercase tracking-wider">Mesas</h2>
+            <span className="flex items-center gap-1"><i className="h-3 w-3 rounded bg-pedra" /> Livre</span>
+            <span className="flex items-center gap-1"><i className="h-3 w-3 rounded bg-estado-verde" /> Ocupada</span>
+            <span className="flex items-center gap-1"><i className="h-3 w-3 rounded bg-estado-laranja" /> Chamando</span>
+            <span className="flex items-center gap-1"><i className="h-3 w-3 rounded bg-estado-azul" /> Conta</span>
+            <span className="flex items-center gap-1"><i className="h-3 w-3 rounded bg-estado-vermelho" /> Atraso</span>
+          </div>
+          <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
+            {mesasVisiveis.map((m) => {
+              const c = chamadoDaMesa.get(m.id);
+              const atrasado = c && c.status === "aberto" && minutosDesde(c.criado_em, agora) >= alertaMinutos;
+              const cor = atrasado
+                ? "bg-estado-vermelho text-white"
+                : c?.tipo === "conta"
+                  ? "bg-estado-azul text-white"
+                  : c
+                    ? `bg-estado-laranja text-white ${c.status === "aberto" ? "animate-pulsar" : ""}`
+                    : m.ocupada
+                      ? "bg-estado-verde text-white"
+                      : "bg-pedra text-carvao";
+              return (
+                <li key={m.id}>
+                  <button onClick={() => setSelecionada(m.id)} className={`flex aspect-square w-full flex-col justify-between rounded-2xl p-3 text-left transition active:scale-95 ${cor}`}>
+                    <span className="text-lg font-extrabold leading-none">{m.nome.replace(/^Mesa\s*/i, "")}</span>
+                    <span className="text-[11px] font-semibold opacity-90">
+                      {c ? (c.status === "a_caminho" ? "A caminho" : cronometro(c.criado_em, agora)) : m.ocupada ? "Ocupada" : "Livre"}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
+      {/* ações da mesa */}
+      {sel && (
+        <div className="fixed inset-0 z-40 flex items-end justify-center sm:items-center">
+          <button className="absolute inset-0 bg-black/40" onClick={() => setSelecionada(null)} aria-label="Fechar" />
+          <div className="card relative w-full max-w-sm rounded-b-none p-5 sm:rounded-b-[18px]">
+            <p className="text-xl font-extrabold">{sel.nome}</p>
+            <p className="text-sm text-grafite">
+              {selChamado ? (selChamado.tipo === "conta" ? "Pediu a conta" : "Chamando garçom") : sel.ocupada ? "Ocupada" : "Livre"}
+              {sel.area ? ` · ${sel.area}` : ""}
+            </p>
+            <div className="mt-4 grid gap-2">
+              {selChamado && podeAtender && selChamado.status === "aberto" && (
+                <button onClick={() => atualizar(selChamado.id, "a_caminho")} className="btn-escuro py-3"><Footprints className="h-4 w-4" /> Estou indo</button>
+              )}
+              {selChamado && podeAtender && (
+                <button onClick={() => atualizar(selChamado.id, "atendido")} className="btn-secundario py-3"><Check className="h-4 w-4" /> Atendido</button>
+              )}
+              {!selChamado && sel.ocupada && podeAtender && (
+                <button onClick={() => liberar(sel.id)} className="btn-secundario py-3">Liberar mesa</button>
+              )}
+              <button onClick={() => setSelecionada(null)} className="btn py-3 text-grafite">Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}
