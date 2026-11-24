@@ -7,7 +7,7 @@ export function supabaseOrigin(): string {
   }
 }
 
-export function buildCsp(nonce: string, dev = process.env.NODE_ENV !== "production"): string {
+export function buildCsp(nonce: string, dev = process.env.NODE_ENV !== "production", https = true): string {
   const sb = supabaseOrigin();
   const sbWs = sb.replace(/^https:/, "wss:");
   const turnstile = "https://challenges.cloudflare.com";
@@ -28,7 +28,7 @@ export function buildCsp(nonce: string, dev = process.env.NODE_ENV !== "producti
     "object-src": ["'none'"],
   };
   const parts = Object.entries(d).map(([k, v]) => `${k} ${v.join(" ")}`);
-  if (!dev) parts.push("upgrade-insecure-requests");
+  if (!dev && https) parts.push("upgrade-insecure-requests");
   return parts.join("; ");
 }
 

@@ -1,5 +1,5 @@
 // PDF das placas de mesa (A6, uma por página): logo + nome do estabelecimento,
-// QR code e texto de instrução. Sem marca Unlock (white-label).
+// QR code e texto de instrução. Sem a marca do SaaS (white-label).
 import "server-only";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import QRCode from "qrcode";

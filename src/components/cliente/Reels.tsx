@@ -262,7 +262,7 @@ export function Reels({ lista, inicio, porId, slug, token, onFechar, onAbrirOutr
                     {p.descricao}
                   </p>
                 )}
-                {p.descricao && p.descricao.length > 90 && !aberto && (
+                {p.descricao && p.descricao.length > 140 && !aberto && (
                   <button onClick={() => setExpandido(p.id)} className="text-sm font-semibold text-white">...leia mais</button>
                 )}
                 {video && i === ativo && (

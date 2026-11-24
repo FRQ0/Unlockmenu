@@ -49,7 +49,8 @@ export async function middleware(req: NextRequest) {
   const host = (req.headers.get("host") ?? "").toLowerCase().split(":")[0];
 
   // HTTPS obrigatório em produção
-  if (process.env.NODE_ENV === "production" && req.headers.get("x-forwarded-proto") === "http") {
+  const local = host === "localhost" || host === "127.0.0.1";
+  if (process.env.NODE_ENV === "production" && !local && req.headers.get("x-forwarded-proto") === "http") {
     return NextResponse.redirect(`https://${req.headers.get("host")}${url.pathname}${url.search}`, 308);
   }
 
@@ -65,7 +66,7 @@ export async function middleware(req: NextRequest) {
   }
 
   const nonce = btoa(crypto.randomUUID());
-  const csp = buildCsp(nonce);
+  const csp = buildCsp(nonce, undefined, !local);
   const reqHeaders = new Headers(req.headers);
   reqHeaders.set("x-nonce", nonce);
   reqHeaders.set("Content-Security-Policy", csp);
