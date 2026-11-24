@@ -161,16 +161,18 @@ export function TabelaPlanos({ restaurante, implantacao, inicial, whatsapp }: { 
         <div className="sticky bottom-4 z-20 mt-8 flex items-center justify-between gap-4 rounded-[20px] bg-carvao px-5 py-4 text-papel shadow-2xl">
           <div className="min-w-0">
             <p className="text-xs text-papel/60">Plano selecionado</p>
-            <p className="truncate text-base font-extrabold sm:text-lg">{PLANO_NOME[sel]} · R$ {PRECOS[sel]}/mês</p>
+            <p className="text-[15px] font-extrabold leading-tight sm:text-lg">
+              {PLANO_NOME[sel]} <span className="whitespace-nowrap">· R$ {PRECOS[sel]}/mês</span>
+            </p>
           </div>
           <a
             href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(msg)}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="shrink-0 rounded-2xl px-5 py-3 text-sm font-extrabold text-carvao transition active:scale-[.98] sm:text-[15px]"
+            className="shrink-0 rounded-2xl px-4 py-3 text-center text-sm font-extrabold leading-tight sm:px-5 text-carvao transition active:scale-[.98] sm:text-[15px]"
             style={{ background: LARANJA }}
           >
-            Começar 7 dias grátis
+            Começar 7<br className="sm:hidden" /> dias grátis
           </a>
         </div>
       </div>
