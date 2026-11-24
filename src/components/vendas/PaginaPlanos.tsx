@@ -91,8 +91,8 @@ function Botao({ href, escuro, children }: { href: string | null; escuro?: boole
 }
 
 export function PaginaPlanos({ restaurante, implantacao, whatsapp }: { restaurante: string | null; implantacao: string | null; whatsapp: string }) {
-  const para = restaurante ? ` para o ${restaurante}` : "";
-  const msgPlano = (p: Plano) => `Olá! Quero testar 7 dias grátis o plano ${PLANO_NOME[p]} (R$ ${PRECOS[p]}/mês) do Unlock Menu${para}.`;
+  const para = restaurante ? ` Restaurante: ${restaurante}.` : "";
+  const msgPlano = (p: Plano) => `Olá! Quero testar 7 dias grátis o plano ${PLANO_NOME[p]} (R$ ${PRECOS[p]}/mês) do Unlock Menu.${para}`;
   const ordem: Plano[] = ["essencial", "profissional", "completo"];
 
   return (
@@ -200,7 +200,7 @@ export function PaginaPlanos({ restaurante, implantacao, whatsapp }: { restauran
           <h2 className="font-serif text-4xl sm:text-5xl">Ficou com alguma dúvida?</h2>
           <p className="mx-auto mt-3 max-w-md text-papel/70">Fale com a gente e veja o sistema funcionando no seu salão.</p>
           <div className="mx-auto mt-7 max-w-xs">
-            <Botao href={linkWhats(whatsapp, `Olá! Tenho uma dúvida sobre os planos do Unlock Menu${para}.`)} escuro>
+            <Botao href={linkWhats(whatsapp, `Olá! Tenho uma dúvida sobre os planos do Unlock Menu.${para}`)} escuro>
               <MessageCircle className="h-5 w-5" /> Falar no WhatsApp
             </Botao>
           </div>
