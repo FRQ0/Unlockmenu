@@ -51,8 +51,9 @@ liberado no **servidor** (rotas + gatilhos no Postgres), não só escondendo bot
    Na Vercel, cadastre as mesmas em Settings → Environment Variables.
 3. **Demo:** `npm install && npm run seed:demo` cria os 3 estabelecimentos demo (um por plano) e mostra as senhas.
    Com `SUPERADMIN_EMAIL=seu@email` (usuário já criado no Supabase), você vira super-admin.
-4. **Vercel:** importe o repositório. O `vercel.json` agenda o alerta de atraso a cada minuto
-   (cron por minuto exige o plano Pro da Vercel; no Hobby, o alerta continua aparecendo no painel aberto).
+4. **Vercel:** importe o repositório. No plano grátis (Hobby) o `vercel.json` roda o cron 1 vez por dia
+   (limpeza dos contadores). O alerta de atraso aparece no painel aberto do gerente. Para o alerta por push
+   com o app fechado, mude o horário para `* * * * *` no plano Pro.
 5. **Domínio do cliente:** no `/admin-master`, informe o domínio. O cliente aponta um CNAME para a Vercel,
    e você adiciona o domínio no projeto da Vercel.
 6. **Web Push:** `npx web-push generate-vapid-keys` e preencha `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`.
