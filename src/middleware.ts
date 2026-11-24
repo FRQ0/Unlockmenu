@@ -93,7 +93,8 @@ export async function middleware(req: NextRequest) {
         },
       },
     });
-    await supabase.auth.getUser();
+    // só renova o token se venceu; quem autoriza de verdade é o getUser() nas páginas/rotas
+    await supabase.auth.getSession();
   }
 
   res.headers.set("Content-Security-Policy", csp);

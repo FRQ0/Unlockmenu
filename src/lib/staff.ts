@@ -1,6 +1,7 @@
 // Autenticação da equipe SEMPRE no servidor: getUser() valida o token no Supabase
 // (não confia só no cookie). Papel e estabelecimento vêm do banco, nunca do cliente.
 import "server-only";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
@@ -18,30 +19,33 @@ export type StaffCtx = {
   tenant: Tenant;
 };
 
-async function loadStaff(): Promise<StaffCtx | null> {
+// cache(): o layout e a página pedem a mesma coisa na mesma requisição; só vai ao banco uma vez
+const loadStaff = cache(async (): Promise<StaffCtx | null> => {
   const supabase = await serverClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
   const { data: ms } = await supabase
     .from("memberships")
-    .select("id,tenant_id,user_id,papel,nome,setores,ativo,tenants(nome)")
+    .select(`id,tenant_id,user_id,papel,nome,setores,ativo,tenants(${TENANT_COLS})`)
     .eq("user_id", user.id)
     .eq("ativo", true);
   if (!ms?.length) return null;
 
   const store = await cookies();
   const escolhido = store.get(TENANT_COOKIE)?.value;
+  const tenants = new Map<string, Tenant>();
   const lista = ms.map((m) => {
-    const { tenants, ...rest } = m as unknown as Membership & { tenants: { nome: string } | null };
-    return { ...rest, tenant_nome: tenants?.nome ?? "" };
+    const { tenants: t, ...rest } = m as unknown as Membership & { tenants: Tenant | null };
+    if (t) tenants.set(rest.tenant_id, t);
+    return { ...rest, tenant_nome: t?.nome ?? "" };
   });
   const membership = lista.find((m) => m.tenant_id === escolhido) ?? lista[0];
 
-  const { data: tenant } = await supabase.from("tenants").select(TENANT_COLS).eq("id", membership.tenant_id).single();
+  const tenant = tenants.get(membership.tenant_id);
   if (!tenant) return null;
-  return { supabase, user, membership, memberships: lista, tenant: tenant as Tenant };
-}
+  return { supabase, user, membership, memberships: lista, tenant };
+});
 
 /** Para route handlers: 401/403 em vez de redirecionar. */
 export async function requireStaff(papeis?: Papel[]): Promise<StaffCtx> {

@@ -15,9 +15,7 @@ export const POST = handle(async (req) => {
   assertSameOrigin(req);
   const body = chamadoPublico.parse(await readJson(req, 2048));
   const ipHash = hashIp(await clientIp());
-  await requireRateLimit(`chamado:ip:${ipHash}`, 20, 300);
-
-  const tenant = await tenantPublico(body.slug);
+  const [, tenant] = await Promise.all([requireRateLimit(`chamado:ip:${ipHash}`, 20, 300), tenantPublico(body.slug)]);
   if (!tenant || !tenant.ativo) throw new HttpError(404, "Atendimento indisponível.");
   const mesa = await mesaPublica(tenant.id, body.token);
   if (!mesa) throw new HttpError(404, "Mesa não encontrada.");

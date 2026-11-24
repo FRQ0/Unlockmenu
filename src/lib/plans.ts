@@ -77,3 +77,6 @@ export function diasRestantesTeste(t: Pick<TenantPlano, "status" | "trial_ends_a
   const ms = new Date(t.trial_ends_at).getTime() - agora.getTime();
   return Math.max(0, Math.ceil(ms / 86_400_000));
 }
+
+/** Preço mensal em reais (apresentado na venda; o acesso só é liberado pelo super-admin). */
+export const PRECOS: Record<Plano, number> = { essencial: 97, profissional: 247, completo: 297 };
