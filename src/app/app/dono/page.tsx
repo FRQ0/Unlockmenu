@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { Lock } from "lucide-react";
 import { PODE_GERIR, staffPage } from "@/lib/staff";
 import { tenantHas } from "@/lib/plans";
-import { calcularMetricas, duracao, inicioPeriodo, type CallRow, type EventRow } from "@/lib/metricas";
+import { calcularMetricas, calcularVendas, duracao, inicioPeriodo, type CallRow, type EventRow, type OrderItemRow, type OrderRow } from "@/lib/metricas";
+import { preco } from "@/lib/format";
 import { GraficoHoras } from "@/components/painel/GraficoHoras";
 
 export const metadata: Metadata = { title: "Painel do dono" };
@@ -23,14 +24,22 @@ export default async function DonoPage({ searchParams }: { searchParams: Promise
   const periodo = p === "7" || p === "30" ? p : "hoje";
   const desde = inicioPeriodo(periodo).toISOString();
 
-  const [{ data: calls }, { data: events }, { data: equipe }, { data: produtos }] = await Promise.all([
+  const comVendas = tenantHas(tenant, "pedidos");
+  const [{ data: calls }, { data: events }, { data: equipe }, { data: produtos }, { data: orders }, { data: orderItens }] = await Promise.all([
     supabase.from("calls").select("table_id,tipo,status,criado_em,aceito_em,atendido_em,atendido_por,aceito_por").eq("tenant_id", tenant.id).gte("criado_em", desde).limit(10000),
     completo
       ? supabase.from("events").select("tipo,product_id").eq("tenant_id", tenant.id).gte("criado_em", desde).limit(50000)
       : Promise.resolve({ data: [] as EventRow[] }),
     supabase.from("memberships").select("user_id,nome").eq("tenant_id", tenant.id),
     supabase.from("products").select("id,nome").eq("tenant_id", tenant.id),
+    comVendas
+      ? supabase.from("orders").select("total,status,session_id,criado_em").eq("tenant_id", tenant.id).gte("criado_em", desde).limit(20000)
+      : Promise.resolve({ data: [] as OrderRow[] }),
+    comVendas
+      ? supabase.from("order_items").select("nome,quantidade,preco,orders!inner(criado_em,status)").eq("tenant_id", tenant.id).gte("orders.criado_em", desde).neq("orders.status", "cancelado").limit(50000)
+      : Promise.resolve({ data: [] as OrderItemRow[] }),
   ]);
+  const v = calcularVendas((orders ?? []) as OrderRow[], (orderItens ?? []) as unknown as OrderItemRow[]);
   const m = calcularMetricas((calls ?? []) as CallRow[], (events ?? []) as EventRow[]);
   const nome = new Map((equipe ?? []).map((e) => [e.user_id, e.nome]));
   const prato = new Map((produtos ?? []).map((x) => [x.id, x.nome]));
@@ -55,7 +64,23 @@ export default async function DonoPage({ searchParams }: { searchParams: Promise
         </nav>
       </div>
 
-      <section className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {comVendas && (
+        <section className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[
+            { rotulo: "Faturamento", valor: preco(v.faturamento) },
+            { rotulo: "Ticket médio por mesa", valor: v.ticketMedio === null ? "—" : preco(v.ticketMedio) },
+            { rotulo: "Pedidos", valor: String(v.pedidos) },
+            { rotulo: "Mesas com pedido", valor: String(v.mesas) },
+          ].map((t) => (
+            <div key={t.rotulo} className="card p-4">
+              <p className="text-xs font-semibold text-grafite">{t.rotulo}</p>
+              <p className="mt-1 text-2xl font-extrabold tabular-nums tracking-tight sm:text-3xl">{t.valor}</p>
+            </div>
+          ))}
+        </section>
+      )}
+
+      <section className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {tiles.map((t) => (
           <div key={t.rotulo} className="card p-4">
             <p className="text-xs font-semibold text-grafite">{t.rotulo}</p>
@@ -91,6 +116,26 @@ export default async function DonoPage({ searchParams }: { searchParams: Promise
                 </tbody>
               </table>
             </section>
+            {comVendas && (
+              <section className="card p-5 lg:col-span-3">
+                <h2 className="font-bold">Pratos mais vendidos</h2>
+                <table className="mt-3 w-full text-sm">
+                  <thead className="text-left text-xs text-grafite">
+                    <tr><th className="py-1 font-semibold">Prato</th><th className="py-1 text-right font-semibold">Qtd.</th><th className="py-1 text-right font-semibold">Valor</th></tr>
+                  </thead>
+                  <tbody>
+                    {v.maisVendidos.map(([nomePrato, x]) => (
+                      <tr key={nomePrato} className="border-t border-pedra">
+                        <td className="py-2 font-semibold">{nomePrato}</td>
+                        <td className="py-2 text-right tabular-nums">{x.qtd}</td>
+                        <td className="py-2 text-right tabular-nums">{preco(x.valor)}</td>
+                      </tr>
+                    ))}
+                    {!v.maisVendidos.length && <tr><td colSpan={3} className="py-4 text-center text-grafite">Sem pedidos no período.</td></tr>}
+                  </tbody>
+                </table>
+              </section>
+            )}
             {[
               { titulo: "Pratos mais vistos", dados: m.maisVistos },
               { titulo: "Mais assistidos nos Reels", dados: m.maisAssistidos },
@@ -111,7 +156,7 @@ export default async function DonoPage({ searchParams }: { searchParams: Promise
             ))}
           </div>
           <p className="mt-6 text-xs text-grafite">
-            {m.scans} leituras de QR/NFC no período. Faturamento entra quando o pedido pelo celular ou o fechamento de conta com valor estiver ativo.
+            {m.scans} leituras de QR/NFC no período. O faturamento soma os pedidos lançados na comanda do garçom.
           </p>
         </>
       ) : (

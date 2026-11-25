@@ -7,5 +7,6 @@ export default async function AppHome() {
   if (membership.papel === "dono" || membership.papel === "gerente") {
     redirect(tenantHas(tenant, "painel_dono_basico") ? "/app/dono" : "/app/garcom");
   }
+  if (membership.papel === "cozinha" && tenantHas(tenant, "pedidos")) redirect("/app/cozinha");
   redirect("/app/garcom");
 }

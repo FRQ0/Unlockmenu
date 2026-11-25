@@ -128,6 +128,36 @@ describe("plano Profissional", () => {
   });
 });
 
+describe("comanda do garçom (só no Completo)", () => {
+  it("Profissional criando pedido → 403", async () => {
+    plano = "profissional";
+    papel = "garcom";
+    const { POST } = await import("@/app/api/app/pedidos/route");
+    const r = await POST(req("POST", { table_id: ID, itens: [{ product_id: ID, quantidade: 1 }] }), ctx());
+    expect(r.status).toBe(403);
+  });
+  it("Profissional fechando conta → 403", async () => {
+    plano = "profissional";
+    const { POST } = await import("@/app/api/app/mesas/[id]/fechar/route");
+    const r = await POST(req("POST"), ctx({ id: ID }));
+    expect(r.status).toBe(403);
+  });
+  it("cozinha não cria pedido → 403", async () => {
+    plano = "completo";
+    papel = "cozinha";
+    const { POST } = await import("@/app/api/app/pedidos/route");
+    const r = await POST(req("POST", { table_id: ID, itens: [{ product_id: ID, quantidade: 1 }] }), ctx());
+    expect(r.status).toBe(403);
+  });
+  it("pedido com preço enviado pelo celular é recusado (400)", async () => {
+    plano = "completo";
+    papel = "garcom";
+    const { POST } = await import("@/app/api/app/pedidos/route");
+    const r = await POST(req("POST", { table_id: ID, itens: [{ product_id: ID, quantidade: 1, preco: 0.01 }] }), ctx());
+    expect(r.status).toBe(400);
+  });
+});
+
 describe("teste vencido e papéis", () => {
   it("Completo com teste vencido → 403 até no cardápio", async () => {
     plano = "completo";

@@ -39,3 +39,12 @@ body {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* Comanda impressa (impressora térmica 58/80 mm): só o ticket sai no papel */
+.ticket { display: none; }
+@media print {
+  @page { size: 80mm auto; margin: 2mm; }
+  body * { visibility: hidden !important; }
+  .ticket, .ticket * { visibility: visible !important; }
+  .ticket { display: block !important; position: absolute; left: 0; top: 0; width: 72mm; color: #000; background: #fff; font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+}

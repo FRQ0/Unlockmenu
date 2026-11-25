@@ -59,3 +59,30 @@ export function duracao(seg: number | null) {
   if (seg < 60) return `${Math.round(seg)} s`;
   return `${Math.floor(seg / 60)} min ${String(Math.round(seg % 60)).padStart(2, "0")} s`;
 }
+
+export type OrderRow = { total: number | string; status: string; session_id: string | null; criado_em: string };
+export type OrderItemRow = { nome: string; quantidade: number; preco: number | string };
+
+/** Faturamento real: soma dos pedidos não cancelados (comanda do garçom). */
+export function calcularVendas(orders: OrderRow[], itens: OrderItemRow[]) {
+  const validos = orders.filter((o) => o.status !== "cancelado");
+  const faturamento = validos.reduce((s, o) => s + Number(o.total), 0);
+  const mesas = new Set(validos.map((o) => o.session_id).filter(Boolean)).size;
+  const porHora = Array.from({ length: 24 }, () => 0);
+  validos.forEach((o) => (porHora[horaSp(o.criado_em)] += Number(o.total)));
+  const pratos = new Map<string, { qtd: number; valor: number }>();
+  for (const i of itens) {
+    const p = pratos.get(i.nome) ?? { qtd: 0, valor: 0 };
+    p.qtd += i.quantidade;
+    p.valor += i.quantidade * Number(i.preco);
+    pratos.set(i.nome, p);
+  }
+  return {
+    faturamento: Math.round(faturamento * 100) / 100,
+    pedidos: validos.length,
+    mesas,
+    ticketMedio: mesas ? Math.round((faturamento / mesas) * 100) / 100 : null,
+    porHora,
+    maisVendidos: [...pratos.entries()].sort((a, b) => b[1].qtd - a[1].qtd).slice(0, 8),
+  };
+}

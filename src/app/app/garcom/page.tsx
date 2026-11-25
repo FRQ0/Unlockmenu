@@ -8,7 +8,19 @@ export const metadata: Metadata = { title: "Salão" };
 
 export default async function GarcomPage() {
   const { supabase, tenant, membership } = await staffPage();
-  const salao = await carregarSalao(supabase, tenant.id);
+  const comPedidos = tenantHas(tenant, "pedidos");
+  const [salao, cardapio] = await Promise.all([
+    carregarSalao(supabase, tenant.id),
+    comPedidos
+      ? Promise.all([
+          supabase.from("categories").select("id,nome").eq("tenant_id", tenant.id).eq("ativa", true).order("ordem"),
+          supabase.from("products").select("id,nome,preco,categoria_id,disponivel").eq("tenant_id", tenant.id).order("ordem"),
+        ]).then(([c, p]) => ({
+          categorias: c.data ?? [],
+          produtos: (p.data ?? []).map((x) => ({ ...x, preco: Number(x.preco) })),
+        }))
+      : Promise.resolve(null),
+  ]);
   return (
     <PainelGarcom
       tenantId={tenant.id}
@@ -25,6 +37,7 @@ export default async function GarcomPage() {
       podeAtender={membership.papel !== "cozinha"}
       meusSetores={membership.setores}
       vapid={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ""}
+      cardapio={cardapio}
     />
   );
 }

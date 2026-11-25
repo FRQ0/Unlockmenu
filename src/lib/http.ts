@@ -21,7 +21,10 @@ export function fromDbError(err: { message?: string; code?: string } | null | un
   if (msg.includes("muitos_chamados")) return new HttpError(429, "Muitos chamados seguidos. Aguarde um pouco.");
   if (msg.includes("mesa_nao_encontrada")) return new HttpError(404, "Mesa não encontrada.");
   if (msg.includes("estabelecimento_inativo")) return new HttpError(403, "Atendimento indisponível no momento.");
-  if (msg.includes("transicao_invalida")) return new HttpError(409, "Este chamado já foi atualizado.");
+  if (msg.includes("transicao_invalida")) return new HttpError(409, "Já foi atualizado por outra pessoa. Atualize a tela.");
+  if (msg.includes("item_invalido")) return new HttpError(400, "Algum item está esgotado ou não existe mais.");
+  if (msg.includes("pedido_invalido")) return new HttpError(400, "Pedido inválido.");
+  if (msg.includes("pedido_ja_fechado")) return new HttpError(409, "Esta conta já foi fechada.");
   if (err?.code === "42501" || msg.includes("row-level security") || msg.includes("permission denied"))
     return new HttpError(403, "Sem permissão.");
   if (err?.code === "23505") return new HttpError(409, "Já existe um registro com esses dados.");

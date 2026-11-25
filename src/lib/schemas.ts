@@ -154,3 +154,15 @@ export function caminhoInterno(next: string | undefined | null, padrao = "/app")
   if (!next || !next.startsWith("/") || next.startsWith("//") || next.includes("\\")) return padrao;
   return next;
 }
+
+export const pedidoCriar = z
+  .object({
+    table_id: uuid,
+    itens: z
+      .array(z.object({ product_id: uuid, quantidade: z.number().int().min(1).max(50), observacao: z.string().trim().max(200).optional() }).strict())
+      .min(1)
+      .max(50),
+    observacao: z.string().trim().max(200).optional(),
+  })
+  .strict();
+export const pedidoStatus = z.object({ status: z.enum(["preparando", "pronto", "entregue", "cancelado"]) }).strict();

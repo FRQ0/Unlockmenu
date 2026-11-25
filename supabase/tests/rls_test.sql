@@ -184,3 +184,59 @@ select public.t_expect_eq($q$select count(*) from public.conferir_pin('rest-a', 
 select public.t_expect_eq($q$select count(*) from public.conferir_pin('rest-a', '0000') where conferir_pin is not null$q$, 0, 'PIN errado não confere');
 select public.t_expect_eq($q$select count(*) from public.memberships where pin_hash like '$2%'$q$, 1, 'PIN guardado com bcrypt');
 reset role;
+
+-- ---------------------------------------------------------------------------
+-- 6. Comanda do garçom, cozinha e fechamento de conta
+-- ---------------------------------------------------------------------------
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000000a3', 'cozinha-a@x.com');
+insert into public.memberships (tenant_id, user_id, papel, nome) values
+  ('aaaaaaaa-0000-0000-0000-000000000000', '00000000-0000-0000-0000-0000000000a3', 'cozinha', 'Cida Cozinha');
+
+set role authenticated;
+select public.t_as('00000000-0000-0000-0000-0000000000a2'); -- garçom A (Completo)
+select public.t_ok($q$select public.criar_pedido('aaaaaaaa-3333-0000-0000-000000000002', '[{"product_id":"aaaaaaaa-2222-0000-0000-000000000002","quantidade":3,"observacao":"bem gelada"}]', 'mesa da janela')$q$, 'garçom cria pedido');
+select public.t_expect_eq($q$select (total * 100)::bigint from public.orders where table_id = 'aaaaaaaa-3333-0000-0000-000000000002'$q$, 4200, 'total calculado com o preço do banco (3 × 14,00)');
+select public.t_expect_eq($q$select count(*) from public.sessions where table_id = 'aaaaaaaa-3333-0000-0000-000000000002' and encerrada_em is null$q$, 1, 'pedido abre a mesa');
+select public.t_expect_error($q$select public.criar_pedido('aaaaaaaa-3333-0000-0000-000000000002', '[{"product_id":"bbbbbbbb-2222-0000-0000-000000000001","quantidade":1}]')$q$, 'item_invalido', 'não pede produto de outro estabelecimento');
+select public.t_expect_error($q$select public.criar_pedido('aaaaaaaa-3333-0000-0000-000000000002', '[{"product_id":"aaaaaaaa-2222-0000-0000-000000000002","quantidade":0}]')$q$, 'item_invalido', 'quantidade inválida recusada');
+select public.t_expect_error($q$select public.criar_pedido('aaaaaaaa-3333-0000-0000-000000000002', '[]')$q$, 'pedido_invalido', 'pedido vazio recusado');
+select public.t_expect_error($q$insert into public.orders (tenant_id, table_id, total) values ('aaaaaaaa-0000-0000-0000-000000000000', 'aaaaaaaa-3333-0000-0000-000000000002', 0.01)$q$, 'permission denied', 'não cria pedido direto na tabela (preço manipulado)');
+select public.t_expect_error($q$update public.orders set total = 0.01$q$, 'permission denied', 'não altera o total do pedido');
+select public.t_expect_error($q$update public.order_items set preco = 0.01$q$, 'permission denied', 'não altera o preço do item');
+
+reset role;
+update public.products set disponivel = false where id = 'aaaaaaaa-2222-0000-0000-000000000001';
+set role authenticated;
+select public.t_as('00000000-0000-0000-0000-0000000000a2');
+select public.t_expect_error($q$select public.criar_pedido('aaaaaaaa-3333-0000-0000-000000000002', '[{"product_id":"aaaaaaaa-2222-0000-0000-000000000001","quantidade":1}]')$q$, 'item_invalido', 'não pede prato esgotado');
+
+-- cozinha
+select public.t_as('00000000-0000-0000-0000-0000000000a3');
+select public.t_expect_eq('select count(*) from public.orders', 1, 'cozinha vê os pedidos');
+select public.t_expect_error($q$select public.criar_pedido('aaaaaaaa-3333-0000-0000-000000000002', '[{"product_id":"aaaaaaaa-2222-0000-0000-000000000002","quantidade":1}]')$q$, 'permissão', 'cozinha não cria pedido');
+select public.t_ok($q$update public.orders set status = 'preparando'$q$, 'cozinha começa a preparar');
+select public.t_expect_error($q$update public.orders set status = 'entregue'$q$, 'transicao_invalida', 'não pula de preparando para entregue');
+select public.t_ok($q$update public.orders set status = 'pronto'$q$, 'cozinha marca pronto');
+select public.t_expect_error($q$update public.orders set status = 'entregue'$q$, 'sem permissão', 'cozinha não marca entregue');
+select public.t_expect_error($q$select public.fechar_conta('aaaaaaaa-3333-0000-0000-000000000002')$q$, 'permissão', 'cozinha não fecha conta');
+
+-- outro estabelecimento não vê nem fecha
+select public.t_as('00000000-0000-0000-0000-00000000000b');
+select public.t_expect_eq('select count(*) from public.orders', 0, 'outro estabelecimento não vê pedidos');
+select public.t_expect_error($q$select public.fechar_conta('aaaaaaaa-3333-0000-0000-000000000002')$q$, 'permissão', 'outro estabelecimento não fecha conta');
+select public.t_expect_error($q$select public.criar_pedido('aaaaaaaa-3333-0000-0000-000000000002', '[{"product_id":"aaaaaaaa-2222-0000-0000-000000000002","quantidade":1}]')$q$, 'permissão', 'outro estabelecimento não cria pedido');
+
+-- plano sem o recurso
+reset role;
+insert into public.tables (id, tenant_id, nome) values ('dddddddd-3333-0000-0000-000000000001', 'dddddddd-0000-0000-0000-000000000000', 'Mesa 01');
+set role authenticated;
+select public.t_as('00000000-0000-0000-0000-00000000000d');
+select public.t_expect_error($q$select public.criar_pedido('dddddddd-3333-0000-0000-000000000001', (select jsonb_build_array(jsonb_build_object('product_id', id, 'quantidade', 1)) from public.products where nome = 'Pizza'))$q$, 'recurso_indisponivel_no_plano: pedidos', 'Profissional não usa comanda');
+
+-- fechar a conta
+select public.t_as('00000000-0000-0000-0000-0000000000a2');
+select public.t_expect_eq($q$select (public.fechar_conta('aaaaaaaa-3333-0000-0000-000000000002') * 100)::bigint$q$, 4200, 'fechar conta devolve o total');
+select public.t_expect_eq($q$select count(*) from public.sessions where table_id = 'aaaaaaaa-3333-0000-0000-000000000002' and encerrada_em is null$q$, 0, 'mesa liberada');
+select public.t_expect_eq($q$select count(*) from public.orders where pago_em is not null and status = 'entregue'$q$, 1, 'pedido marcado como pago');
+select public.t_expect_error($q$update public.orders set status = 'cancelado'$q$, 'transicao_invalida', 'pedido pago não muda mais');
+reset role;

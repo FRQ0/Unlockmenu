@@ -174,7 +174,7 @@ export function AdminConfig({ inicial, slug, recursos }: { inicial: Config; slug
             </div>
             <div>
               <p className="rotulo">Modo de atendimento</p>
-              <p className="text-sm text-grafite">Só chamar garçom. O modo “Chamar garçom + pedir pelo celular” chega na próxima etapa (tela da cozinha e impressora).</p>
+              <p className="text-sm text-grafite">O cliente chama o garçom pela mesa. No plano Completo, o garçom anota o pedido no celular dele e o pedido cai na tela da Cozinha (tablet ou celular) e/ou na impressora.</p>
             </div>
           </section>
 

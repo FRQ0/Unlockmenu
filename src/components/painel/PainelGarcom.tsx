@@ -2,10 +2,12 @@
 // Painel do garçom: tempo real (Supabase Realtime + RLS), som, vibração, cronômetro,
 // alerta de atraso e filtro por setor. Recursos ligados conforme o plano (definido no servidor).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bell, BellRing, Check, Footprints, Receipt, TriangleAlert, Volume2, Wifi, WifiOff } from "lucide-react";
+import { Bell, BellRing, Check, ClipboardList, Footprints, Receipt, TriangleAlert, Volume2, Wifi, WifiOff } from "lucide-react";
 import { autenticarRealtime, realtimeClient } from "@/lib/supabase/browser";
 import { cronometro, minutosDesde } from "@/lib/format";
 import { audioPronto, liberarAudio, tocar } from "./som";
+import { Comanda, type CategoriaComanda, type ProdutoComanda } from "./Comanda";
+import { ContaMesa } from "./ContaMesa";
 
 type Mesa = { id: string; nome: string; area: string | null; ocupada: boolean };
 type Chamado = { id: string; table_id: string; tipo: "garcom" | "conta"; status: "aberto" | "a_caminho"; criado_em: string; aceito_nome: string | null };
@@ -20,7 +22,10 @@ type Props = {
   podeAtender: boolean;
   meusSetores: string[];
   vapid: string;
+  cardapio: { categorias: CategoriaComanda[]; produtos: ProdutoComanda[] } | null;
 };
+
+type PedidoPronto = { id: string; table_id: string; mesa: string; status: string; criado_em: string; itens: { nome: string; quantidade: number }[] };
 
 function b64ToUint8(b64: string) {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
@@ -28,7 +33,7 @@ function b64ToUint8(b64: string) {
   return Uint8Array.from(raw, (c) => c.charCodeAt(0));
 }
 
-export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, gerente, podeAtender, meusSetores, vapid }: Props) {
+export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, gerente, podeAtender, meusSetores, vapid, cardapio }: Props) {
   const [salao, setSalao] = useState<Salao>(inicial);
   const [agora, setAgora] = useState(() => Date.now());
   const [online, setOnline] = useState(true);
@@ -37,6 +42,10 @@ export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, geren
   const [setor, setSetor] = useState<string>("__todos");
   const [selecionada, setSelecionada] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
+  const [comanda, setComanda] = useState<{ id: string; nome: string } | null>(null);
+  const [conta, setConta] = useState<{ id: string; nome: string } | null>(null);
+  const [prontos, setProntos] = useState<PedidoPronto[]>([]);
+  const prontosConhecidos = useRef<Set<string> | null>(null);
   const conhecidos = useRef<Set<string>>(new Set(inicial.chamados.map((c) => c.id)));
   const alertados = useRef<Set<string>>(new Set());
 
@@ -82,10 +91,24 @@ export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, geren
       }
       setSalao(novo);
       setOnline(true);
+      if (cardapio) {
+        const rp = await fetch("/api/app/pedidos", { cache: "no-store" });
+        if (rp.ok) {
+          const { pedidos } = (await rp.json()) as { pedidos: PedidoPronto[] };
+          const lista = pedidos.filter((x) => x.status === "pronto");
+          const vistos = prontosConhecidos.current;
+          if (vistos && lista.some((x) => !vistos.has(x.id))) {
+            if (recursos.som && audioPronto()) tocar("conta");
+            navigator.vibrate?.([150, 80, 150]);
+          }
+          prontosConhecidos.current = new Set(lista.map((x) => x.id));
+          setProntos(lista);
+        }
+      }
     } catch {
       setOnline(false);
     }
-  }, [recursos.som]);
+  }, [recursos.som, cardapio]);
 
   // tempo real + rede de segurança (consulta a cada 15 s)
   useEffect(() => {
@@ -103,8 +126,10 @@ export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, geren
       canal
         .on("postgres_changes", { event: "*", schema: "public", table: "calls", filter: `tenant_id=eq.${tenantId}` }, agendar)
         .on("postgres_changes", { event: "*", schema: "public", table: "sessions", filter: `tenant_id=eq.${tenantId}` }, agendar)
+        .on("postgres_changes", { event: "*", schema: "public", table: "orders", filter: `tenant_id=eq.${tenantId}` }, agendar)
         .subscribe((st) => setOnline(st === "SUBSCRIBED"));
     })();
+    recarregar();
     const poll = setInterval(recarregar, 15_000);
     const renovar = setInterval(autenticarRealtime, 45 * 60_000);
     const vis = () => document.visibilityState === "visible" && recarregar();
@@ -165,6 +190,14 @@ export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, geren
       setOcupado(null);
       setSelecionada(null);
     }
+  }
+
+  async function entregar(id: string) {
+    setOcupado(id);
+    setProntos((l) => l.filter((x) => x.id !== id));
+    await fetch(`/api/app/pedidos/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "entregue" }) });
+    setOcupado(null);
+    recarregar();
   }
 
   async function liberar(mesaId: string) {
@@ -237,6 +270,23 @@ export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, geren
         </div>
       )}
 
+      {cardapio && prontos.length > 0 && (
+        <section className="mt-6">
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-estado-verde">Prontos para levar ({prontos.length})</h2>
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {prontos.map((p) => (
+              <li key={p.id} className="card flex items-center gap-3 p-3 ring-2 ring-estado-verde">
+                <div className="min-w-0 flex-1">
+                  <p className="font-extrabold">{p.mesa}</p>
+                  <p className="truncate text-sm text-grafite">{p.itens.map((i) => `${i.quantidade}× ${i.nome}`).join(", ")}</p>
+                </div>
+                <button disabled={ocupado === p.id} onClick={() => entregar(p.id)} className="btn bg-estado-verde text-white"><Check className="h-4 w-4" /> Entregue</button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {/* chamados abertos */}
       <section className="mt-6">
         <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-grafite">Chamados ({chamados.length})</h2>
@@ -258,9 +308,15 @@ export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, geren
                   </div>
                   <div className="flex items-center gap-2 p-3">
                     {c.status === "a_caminho" ? (
-                      <span className="flex flex-1 items-center gap-1.5 text-sm font-semibold text-estado-verde">
-                        <Footprints className="h-4 w-4" /> {c.aceito_nome ?? "Alguém"} a caminho
-                      </span>
+                      cardapio && podeAtender ? (
+                        <button onClick={() => setComanda({ id: c.table_id, nome: nomeMesa.get(c.table_id) ?? "Mesa" })} className="btn-escuro flex-1">
+                          <ClipboardList className="h-4 w-4" /> Anotar pedido
+                        </button>
+                      ) : (
+                        <span className="flex flex-1 items-center gap-1.5 text-sm font-semibold text-estado-verde">
+                          <Footprints className="h-4 w-4" /> {c.aceito_nome ?? "Alguém"} a caminho
+                        </span>
+                      )
                     ) : podeAtender ? (
                       <button disabled={ocupado === c.id} onClick={() => atualizar(c.id, "a_caminho")} className="btn-escuro flex-1">
                         <Footprints className="h-4 w-4" /> Estou indo
@@ -337,13 +393,30 @@ export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, geren
               {selChamado && podeAtender && (
                 <button onClick={() => atualizar(selChamado.id, "atendido")} className="btn-secundario py-3"><Check className="h-4 w-4" /> Atendido</button>
               )}
-              {!selChamado && sel.ocupada && podeAtender && (
+              {cardapio && podeAtender && (
+                <button onClick={() => { setComanda({ id: sel.id, nome: sel.nome }); setSelecionada(null); }} className="btn-escuro py-3"><ClipboardList className="h-4 w-4" /> Fazer pedido</button>
+              )}
+              {cardapio && podeAtender && sel.ocupada && (
+                <button onClick={() => { setConta({ id: sel.id, nome: sel.nome }); setSelecionada(null); }} className="btn-secundario py-3"><Receipt className="h-4 w-4" /> Ver conta / fechar</button>
+              )}
+              {!cardapio && !selChamado && sel.ocupada && podeAtender && (
                 <button onClick={() => liberar(sel.id)} className="btn-secundario py-3">Liberar mesa</button>
               )}
               <button onClick={() => setSelecionada(null)} className="btn py-3 text-grafite">Fechar</button>
             </div>
           </div>
         </div>
+      )}
+      {comanda && cardapio && (
+        <Comanda mesa={comanda} categorias={cardapio.categorias} produtos={cardapio.produtos} onFechar={() => setComanda(null)} onEnviado={() => { setComanda(null); recarregar(); }} />
+      )}
+      {conta && (
+        <ContaMesa
+          mesa={conta}
+          onFechar={() => setConta(null)}
+          onNovoPedido={() => { setComanda(conta); setConta(null); }}
+          onFechada={() => { setConta(null); recarregar(); }}
+        />
       )}
     </main>
   );
