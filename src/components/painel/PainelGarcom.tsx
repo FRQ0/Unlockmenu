@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bell, BellRing, Check, ClipboardList, Footprints, Receipt, TriangleAlert, Volume2, Wifi, WifiOff } from "lucide-react";
 import { autenticarRealtime, realtimeClient } from "@/lib/supabase/browser";
 import { cronometro, minutosDesde } from "@/lib/format";
-import { audioPronto, liberarAudio, tocar } from "./som";
+import { acompanharSom, audioPronto, liberarAudio, somFoiAtivadoAntes, tocar } from "./som";
 import { Comanda, type CategoriaComanda, type ProdutoComanda } from "./Comanda";
 import { ContaMesa } from "./ContaMesa";
 
@@ -23,6 +23,7 @@ type Props = {
   meusSetores: string[];
   vapid: string;
   cardapio: { categorias: CategoriaComanda[]; produtos: ProdutoComanda[] } | null;
+  eu: { id: string; nome: string; papel: string };
 };
 
 type PedidoPronto = { id: string; table_id: string; mesa: string; status: string; criado_em: string; itens: { nome: string; quantidade: number }[] };
@@ -33,12 +34,14 @@ function b64ToUint8(b64: string) {
   return Uint8Array.from(raw, (c) => c.charCodeAt(0));
 }
 
-export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, gerente, podeAtender, meusSetores, vapid, cardapio }: Props) {
+export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, gerente, podeAtender, meusSetores, vapid, cardapio, eu }: Props) {
   const [salao, setSalao] = useState<Salao>(inicial);
   const [agora, setAgora] = useState(() => Date.now());
   const [online, setOnline] = useState(true);
   const [somOn, setSomOn] = useState(false);
-  const [pushOn, setPushOn] = useState<"nao" | "sim" | "negado">("nao");
+  const [somJaUsado, setSomJaUsado] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [pushOn, setPushOn] = useState<"nao" | "sim" | "negado" | "instalar">("nao");
   const [setor, setSetor] = useState<string>("__todos");
   const [selecionada, setSelecionada] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
@@ -48,6 +51,11 @@ export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, geren
   const prontosConhecidos = useRef<Set<string> | null>(null);
   const conhecidos = useRef<Set<string>>(new Set(inicial.chamados.map((c) => c.id)));
   const alertados = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    setSomJaUsado(somFoiAtivadoAntes());
+    return acompanharSom(setSomOn);
+  }, []);
 
   // relógio do cronômetro
   useEffect(() => {
@@ -62,10 +70,18 @@ export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, geren
       const s = localStorage.getItem("setor");
       if (s) setSetor(s);
       else if (meusSetores.length === 1) setSetor(meusSetores[0]);
+      else if (meusSetores.length > 1) setSetor("__meus");
     } catch {}
   }, [recursos.setores, meusSetores]);
 
   useEffect(() => {
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    const instalado = window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+    if (ios && !instalado) {
+      setPushOn("instalar"); // no iPhone a notificação só funciona com o app na Tela de Início
+      return;
+    }
+    if (!("PushManager" in window)) return;
     if ("Notification" in window && Notification.permission === "denied") setPushOn("negado");
     navigator.serviceWorker?.ready
       .then((r) => r.pushManager.getSubscription())
@@ -81,7 +97,12 @@ export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, geren
         return;
       }
       if (!r.ok) throw new Error();
-      const novo = (await r.json()) as Salao;
+      const novo = (await r.json()) as Salao & { eu?: string };
+      // outra pessoa entrou neste aparelho (ex.: login em outra aba): recarrega com a conta certa
+      if (novo.eu && novo.eu !== eu.id) {
+        window.location.reload();
+        return;
+      }
       // novos chamados → som + vibração
       const novos = novo.chamados.filter((c) => c.status === "aberto" && !conhecidos.current.has(c.id));
       novo.chamados.forEach((c) => conhecidos.current.add(c.id));
@@ -98,7 +119,7 @@ export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, geren
           const lista = pedidos.filter((x) => x.status === "pronto");
           const vistos = prontosConhecidos.current;
           if (vistos && lista.some((x) => !vistos.has(x.id))) {
-            if (recursos.som && audioPronto()) tocar("conta");
+            if (recursos.som && audioPronto()) tocar("pedido");
             navigator.vibrate?.([150, 80, 150]);
           }
           prontosConhecidos.current = new Set(lista.map((x) => x.id));
@@ -149,15 +170,17 @@ export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, geren
     for (const c of salao.chamados) {
       if (c.status === "aberto" && minutosDesde(c.criado_em, agora) >= alertaMinutos && !alertados.current.has(c.id)) {
         alertados.current.add(c.id);
-        if (somOn) tocar("atraso");
+        if (audioPronto()) tocar("atraso");
         navigator.vibrate?.([400, 150, 400]);
       }
     }
-  }, [agora, salao.chamados, recursos.alertaGerente, gerente, alertaMinutos, somOn]);
+  }, [agora, salao.chamados, recursos.alertaGerente, gerente, alertaMinutos]);
 
   async function ativarSom() {
-    setSomOn(await liberarAudio());
-    tocar("chamado");
+    if (await liberarAudio()) {
+      setSomJaUsado(true);
+      tocar("chamado");
+    }
   }
 
   async function ativarPush() {
@@ -183,8 +206,10 @@ export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, geren
 
   async function atualizar(id: string, status: "a_caminho" | "atendido") {
     setOcupado(id);
+    setAviso(null);
     try {
-      await fetch(`/api/app/chamados/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+      const r = await fetch(`/api/app/chamados/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+      if (!r.ok) setAviso(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "Não foi possível atualizar.");
       await recarregar();
     } finally {
       setOcupado(null);
@@ -210,8 +235,11 @@ export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, geren
 
   const areas = useMemo(() => Array.from(new Set(salao.mesas.map((m) => m.area).filter((a): a is string => !!a))).sort(), [salao.mesas]);
   const mesasVisiveis = useMemo(
-    () => salao.mesas.filter((m) => !recursos.setores || setor === "__todos" || m.area === setor),
-    [salao.mesas, setor, recursos.setores],
+    () =>
+      salao.mesas.filter(
+        (m) => !recursos.setores || setor === "__todos" || (setor === "__meus" ? !!m.area && meusSetores.includes(m.area) : m.area === setor),
+      ),
+    [salao.mesas, setor, recursos.setores, meusSetores],
   );
   const idsVisiveis = new Set(mesasVisiveis.map((m) => m.id));
   const nomeMesa = new Map(salao.mesas.map((m) => [m.id, m.nome]));
@@ -236,26 +264,42 @@ export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, geren
         <span className={`flex items-center gap-1.5 text-xs font-semibold ${online ? "text-estado-verde" : "text-estado-vermelho"}`}>
           {online ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />} {online ? "Ao vivo" : "Reconectando..."}
         </span>
+        <span className="w-full text-xs text-grafite sm:w-auto">Conectado como <strong className="text-carvao">{eu.nome}</strong> ({eu.papel === "garcom" ? "garçom" : eu.papel})</span>
         <div className="ml-auto flex flex-wrap gap-2">
           {recursos.som && !somOn && (
-            <button onClick={ativarSom} className="btn-primario"><Volume2 className="h-4 w-4" /> Ativar som</button>
+            <button onClick={ativarSom} className="btn-primario animate-pulsar"><Volume2 className="h-4 w-4" /> {somJaUsado ? "Toque para religar o som" : "Ativar som"}</button>
           )}
           {recursos.push && pushOn === "nao" && (
             <button onClick={ativarPush} className="btn-secundario"><BellRing className="h-4 w-4" /> Avisar com o app fechado</button>
           )}
-          {recursos.push && pushOn === "negado" && <span className="text-xs text-grafite">Notificações bloqueadas no navegador</span>}
+          {recursos.push && pushOn === "negado" && <span className="text-xs text-grafite">Notificações bloqueadas nos ajustes do celular</span>}
         </div>
       </div>
 
+      {recursos.push && pushOn === "instalar" && (
+        <div className="mt-4 rounded-2xl bg-areia/20 p-4 text-sm">
+          <p className="font-bold">iPhone: para tocar e vibrar mesmo com o celular bloqueado</p>
+          <p className="mt-1 text-grafite">
+            Abra este painel no <strong>Safari</strong>, toque em <strong>Compartilhar</strong> (quadrado com seta) → <strong>Adicionar à Tela de Início</strong>. Depois abra pelo ícone novo e toque em “Avisar com o app fechado”.
+          </p>
+        </div>
+      )}
+      {!podeAtender && (
+        <p className="mt-4 rounded-2xl bg-estado-azul/10 p-4 text-sm font-semibold text-estado-azul">
+          Você entrou com um acesso de <strong>cozinha</strong>: dá para acompanhar o salão, mas atender mesas, anotar pedidos e fechar conta é com garçom, gerente ou dono.
+        </p>
+      )}
+      {aviso && <p role="alert" className="mt-4 rounded-2xl bg-estado-vermelho/10 p-4 text-sm font-semibold text-estado-vermelho">{aviso}</p>}
+
       {recursos.setores && areas.length > 0 && (
         <div className="no-scrollbar mt-4 flex gap-2 overflow-x-auto">
-          {["__todos", ...areas].map((a) => (
+          {["__todos", ...(meusSetores.length > 1 ? ["__meus"] : []), ...areas].map((a) => (
             <button
               key={a}
               onClick={() => escolherSetor(a)}
               className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold ${setor === a ? "bg-carvao text-papel" : "bg-white shadow-suave"}`}
             >
-              {a === "__todos" ? "Todos os setores" : a}
+              {a === "__todos" ? "Todos os setores" : a === "__meus" ? "Meus setores" : a}
             </button>
           ))}
         </div>

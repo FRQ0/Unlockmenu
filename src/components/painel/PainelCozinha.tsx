@@ -2,10 +2,10 @@
 // Tela da cozinha: funciona num tablet/celular barato (tela grande, som) e/ou imprime
 // a comanda numa impressora térmica. Tempo real via Supabase (RLS) + consulta a cada 10 s.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChefHat, Check, Printer, Volume2, Wifi, WifiOff } from "lucide-react";
+import { ChefHat, Check, CircleHelp, Printer, Volume2, Wifi, WifiOff, X } from "lucide-react";
 import { autenticarRealtime, realtimeClient } from "@/lib/supabase/browser";
 import { cronometro, minutosDesde } from "@/lib/format";
-import { audioPronto, liberarAudio, tocar } from "./som";
+import { acompanharSom, audioPronto, liberarAudio, somFoiAtivadoAntes, tocar } from "./som";
 import { api } from "./api";
 
 type Item = { nome: string; quantidade: number; preco: number; observacao: string | null };
@@ -29,19 +29,28 @@ export function PainelCozinha({ tenantId, nomeEstabelecimento, inicial }: { tena
   const [agora, setAgora] = useState(() => Date.now());
   const [online, setOnline] = useState(true);
   const [somOn, setSomOn] = useState(false);
+  const [somJaUsado, setSomJaUsado] = useState(false);
   const [autoPrint, setAutoPrint] = useState(false);
   const [imprimindo, setImprimindo] = useState<Pedido | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [guia, setGuia] = useState(false);
+  const [papel, setPapel] = useState<58 | 80>(80);
   const conhecidos = useRef(new Set(inicial.map((p) => p.id)));
   const fila = useRef<Pedido[]>([]);
   const autoRef = useRef(false);
 
   useEffect(() => {
+    setSomJaUsado(somFoiAtivadoAntes());
+    const parar = acompanharSom(setSomOn);
+    setPapel(ler("cozinha_papel") === "58" ? 58 : 80);
     const v = ler("cozinha_autoprint") === "1";
     setAutoPrint(v);
     autoRef.current = v;
     const t = setInterval(() => setAgora(Date.now()), 1000);
-    return () => clearInterval(t);
+    return () => {
+      clearInterval(t);
+      parar();
+    };
   }, []);
 
   // impressão: um ticket por vez
@@ -75,7 +84,7 @@ export function PainelCozinha({ tenantId, nomeEstabelecimento, inicial }: { tena
       const novos = lista.filter((p) => p.status === "novo" && !conhecidos.current.has(p.id));
       lista.forEach((p) => conhecidos.current.add(p.id));
       if (novos.length) {
-        if (audioPronto()) tocar("chamado");
+        if (audioPronto()) tocar("pedido");
         navigator.vibrate?.([300, 120, 300]);
         if (autoRef.current) novos.forEach(imprimir);
       }
@@ -136,8 +145,8 @@ export function PainelCozinha({ tenantId, nomeEstabelecimento, inicial }: { tena
         </span>
         <div className="ml-auto flex flex-wrap gap-2">
           {!somOn && (
-            <button onClick={async () => { setSomOn(await liberarAudio()); tocar("chamado"); }} className="btn-primario">
-              <Volume2 className="h-4 w-4" /> Ativar som
+            <button onClick={async () => { if (await liberarAudio()) { setSomJaUsado(true); tocar("pedido"); } }} className="btn-primario animate-pulsar">
+              <Volume2 className="h-4 w-4" /> {somJaUsado ? "Toque para religar o som" : "Ativar som"}
             </button>
           )}
           <label className="btn-secundario cursor-pointer select-none">
@@ -148,6 +157,7 @@ export function PainelCozinha({ tenantId, nomeEstabelecimento, inicial }: { tena
             />
             <Printer className="h-4 w-4" /> Imprimir automático
           </label>
+          <button onClick={() => setGuia(true)} className="btn-secundario"><CircleHelp className="h-4 w-4" /> Impressora</button>
         </div>
       </div>
       {erro && <p role="alert" className="mt-3 rounded-xl bg-estado-vermelho/10 p-3 text-sm font-semibold text-estado-vermelho">{erro}</p>}
@@ -197,9 +207,59 @@ export function PainelCozinha({ tenantId, nomeEstabelecimento, inicial }: { tena
         })}
       </div>
 
+      {guia && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4">
+          <div className="card max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-b-none p-5 sm:rounded-b-[18px]">
+            <div className="flex items-center">
+              <h2 className="text-lg font-extrabold">Como ligar a impressora</h2>
+              <button onClick={() => setGuia(false)} className="ml-auto p-2" aria-label="Fechar"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="mt-3 flex items-center gap-2 text-sm">
+              <span className="font-semibold">Largura do papel:</span>
+              {([58, 80] as const).map((w) => (
+                <button key={w} onClick={() => { setPapel(w); gravar("cozinha_papel", String(w)); }} className={`rounded-full px-3 py-1 font-semibold ${papel === w ? "bg-carvao text-papel" : "bg-papel"}`}>{w} mm</button>
+              ))}
+              <button
+                onClick={() => imprimir({ id: "teste", table_id: "", mesa: "TESTE", status: "novo", total: 0, observacao: "Se saiu certinho, está tudo pronto!", criado_em: new Date().toISOString(), garcom: null, itens: [{ nome: "Pizza Margherita", quantidade: 2, preco: 0, observacao: "sem cebola" }] })}
+                className="btn-escuro ml-auto px-3 py-1.5 text-xs"
+              >
+                <Printer className="h-3.5 w-3.5" /> Imprimir teste
+              </button>
+            </div>
+            <div className="mt-4 space-y-4 text-sm leading-relaxed">
+              <section className="rounded-xl bg-papel p-4">
+                <p className="font-bold">Opção 1 · Sem impressora (mais simples)</p>
+                <p className="text-grafite">Deixe um tablet ou celular na cozinha com esta tela aberta, o som ligado e a tela sempre acesa (Ajustes → Tela → Bloqueio automático: Nunca).</p>
+              </section>
+              <section className="rounded-xl bg-papel p-4">
+                <p className="font-bold">Opção 2 · Computador + impressora térmica USB (imprime sozinho)</p>
+                <ol className="mt-1 list-decimal space-y-1 pl-5 text-grafite">
+                  <li>Ligue a impressora no USB e instale o driver do fabricante (Elgin, Epson, Bematech, Knup...).</li>
+                  <li>Nas configurações da impressora, escolha o papel de 80 mm (ou 58 mm).</li>
+                  <li>Deixe ela como <strong>impressora padrão</strong> do computador.</li>
+                  <li>Crie um atalho do Google Chrome e, em “Destino”, coloque no final: <code className="rounded bg-white px-1">--kiosk-printing</code></li>
+                  <li>Abra o Chrome por esse atalho, entre nesta tela e marque <strong>Imprimir automático</strong>. Cada pedido novo sai sozinho, sem perguntar.</li>
+                </ol>
+              </section>
+              <section className="rounded-xl bg-papel p-4">
+                <p className="font-bold">Opção 3 · Celular/tablet Android + impressora Bluetooth</p>
+                <ol className="mt-1 list-decimal space-y-1 pl-5 text-grafite">
+                  <li>Pareie a impressora no Bluetooth do aparelho.</li>
+                  <li>Instale o app gratuito <strong>RawBT</strong> e escolha a impressora nele.</li>
+                  <li>Nesta tela, toque no ícone de impressora do pedido → escolha <strong>RawBT</strong> como impressora → Imprimir.</li>
+                </ol>
+                <p className="mt-1 text-xs text-grafite">No Android o celular sempre pergunta antes de imprimir (1 toque por pedido). Para sair 100% sozinho, use a opção 2.</p>
+              </section>
+              <p className="text-xs text-grafite">iPhone e iPad só imprimem em impressoras com AirPrint, e quase nenhuma impressora térmica tem. Para cozinha, prefira Android ou computador.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Ticket para a impressora térmica (só aparece na impressão) */}
       {imprimindo && (
-        <div className="ticket">
+        <div className="ticket" style={{ width: papel === 58 ? "48mm" : "72mm" }}>
+          <style>{`@media print { @page { size: ${papel}mm auto; margin: 2mm; } }`}</style>
           <p style={{ textAlign: "center", fontWeight: 700 }}>{nomeEstabelecimento}</p>
           <p style={{ textAlign: "center", fontSize: 22, fontWeight: 800, margin: "4px 0" }}>{imprimindo.mesa}</p>
           <p style={{ textAlign: "center" }}>

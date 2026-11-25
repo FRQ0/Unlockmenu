@@ -7,7 +7,7 @@ import { PainelGarcom } from "@/components/painel/PainelGarcom";
 export const metadata: Metadata = { title: "Salão" };
 
 export default async function GarcomPage() {
-  const { supabase, tenant, membership } = await staffPage();
+  const { supabase, tenant, membership, user } = await staffPage();
   const comPedidos = tenantHas(tenant, "pedidos");
   const [salao, cardapio] = await Promise.all([
     carregarSalao(supabase, tenant.id),
@@ -38,6 +38,7 @@ export default async function GarcomPage() {
       meusSetores={membership.setores}
       vapid={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ""}
       cardapio={cardapio}
+      eu={{ id: user.id, nome: membership.nome, papel: membership.papel }}
     />
   );
 }
