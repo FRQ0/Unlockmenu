@@ -101,7 +101,7 @@ export function CaixaFichas({
   }, [pagos, falta, pagando]);
 
   return (
-    <main className="mx-auto max-w-6xl p-3 lg:p-6">
+    <main className="mx-auto max-w-6xl p-3 pb-28 lg:p-6 lg:pb-6">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-extrabold tracking-tight">Caixa e fichas</h1>
         <button onClick={() => setVerResumo(true)} className="btn-secundario ml-auto"><Receipt className="h-4 w-4" /> Caixa de hoje · {preco(resumo.total)}</button>
@@ -137,7 +137,7 @@ export function CaixaFichas({
           </ul>
         </section>
 
-        <aside className="card h-fit p-4 lg:sticky lg:top-4">
+        <aside id="venda" className="card h-fit scroll-mt-20 p-4 lg:sticky lg:top-4">
           <h2 className="font-bold">Venda atual</h2>
           {!itens.length ? (
             <p className="py-6 text-center text-sm text-grafite">Toque nos produtos para adicionar.</p>
@@ -180,6 +180,19 @@ export function CaixaFichas({
         </aside>
       </div>
 
+      {/* celular: total e "Receber" sempre à mão, sem rolar até o fim da lista */}
+      {itens.length > 0 && !fichas && (
+        <div className="pb-seguro fixed inset-x-0 bottom-0 z-40 flex items-center gap-3 border-t border-pedra bg-white px-4 pt-3 shadow-2xl lg:hidden">
+          <a href="#venda" className="min-w-0 flex-1">
+            <p className="text-xs text-grafite">{itens.reduce((s, [, q]) => s + q, 0)} item(ns) · ver venda</p>
+            <p className="text-xl font-extrabold tabular-nums">{preco(falta || total)}</p>
+          </a>
+          <button onClick={() => setPagando(true)} disabled={finalizando} className="btn-escuro px-6 py-3 text-base">
+            {finalizando ? <Loader2 className="h-5 w-5 animate-spin" /> : null} Receber
+          </button>
+        </div>
+      )}
+
       {pagando && (
         <Pagamento
           titulo="Venda de fichas"
@@ -197,7 +210,7 @@ export function CaixaFichas({
 
       {fichas && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4">
-          <div className="card w-full max-w-md rounded-b-none p-5 text-center sm:rounded-b-[18px]">
+          <div className="card pb-seguro w-full max-w-md rounded-b-none p-5 text-center sm:rounded-b-[18px] sm:pb-5">
             <p className="text-sm text-grafite">Venda concluída</p>
             <p className="mt-1 text-2xl font-extrabold">{fichas.length} ficha{fichas.length > 1 ? "s" : ""}</p>
             <p className="mt-1 text-sm text-grafite">{fichas.map((f) => f.nome).join(", ")}</p>
@@ -216,7 +229,7 @@ export function CaixaFichas({
               <h2 className="text-lg font-extrabold">Caixa de hoje</h2>
               <button onClick={() => setVerResumo(false)} className="ml-auto p-2" aria-label="Fechar"><X className="h-5 w-5" /></button>
             </header>
-            <div className="overflow-y-auto p-4">
+            <div className="rolagem p-4">
               <p className="text-xs text-grafite">Mesas e fichas, desde 0h</p>
               <p className="text-4xl font-extrabold tabular-nums">{preco(resumo.total)}</p>
               <div className="mt-3 grid grid-cols-2 gap-2">

@@ -426,7 +426,7 @@ export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, geren
       {sel && (
         <div className="fixed inset-0 z-40 flex items-end justify-center sm:items-center">
           <button className="absolute inset-0 bg-black/40" onClick={() => setSelecionada(null)} aria-label="Fechar" />
-          <div className="card relative w-full max-w-sm rounded-b-none p-5 sm:rounded-b-[18px]">
+          <div className="card relative w-full max-w-sm rounded-b-none p-5 pb-seguro sm:rounded-b-[18px] sm:pb-5">
             <p className="text-xl font-extrabold">{sel.nome}</p>
             <p className="text-sm text-grafite">
               {selChamado ? (selChamado.tipo === "conta" ? "Pediu a conta" : "Chamando garçom") : sel.ocupada ? "Ocupada" : "Livre"}

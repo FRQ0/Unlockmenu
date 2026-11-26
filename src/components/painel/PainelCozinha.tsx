@@ -35,6 +35,7 @@ export function PainelCozinha({ tenantId, nomeEstabelecimento, inicial }: { tena
   const [erro, setErro] = useState<string | null>(null);
   const [guia, setGuia] = useState(false);
   const [papel, setPapel] = useState<58 | 80>(80);
+  const [colunaCelular, setColunaCelular] = useState<"novo" | "preparando" | "pronto">("novo");
   const conhecidos = useRef(new Set(inicial.map((p) => p.id)));
   const fila = useRef<Pedido[]>([]);
   const autoRef = useRef(false);
@@ -162,11 +163,30 @@ export function PainelCozinha({ tenantId, nomeEstabelecimento, inicial }: { tena
       </div>
       {erro && <p role="alert" className="mt-3 rounded-xl bg-estado-vermelho/10 p-3 text-sm font-semibold text-estado-vermelho">{erro}</p>}
 
+      {/* celular: uma coluna por vez, em abas */}
+      <div className="mt-4 grid grid-cols-3 gap-1 rounded-2xl bg-white p-1 shadow-suave lg:hidden" role="tablist">
+        {colunas.map((c) => {
+          const n = pedidos.filter((p) => p.status === c.status).length;
+          return (
+            <button
+              key={c.status}
+              role="tab"
+              aria-selected={colunaCelular === c.status}
+              onClick={() => setColunaCelular(c.status)}
+              className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold ${colunaCelular === c.status ? "bg-carvao text-papel" : "text-grafite"}`}
+            >
+              {c.titulo}
+              <span className={`min-w-6 rounded-full px-1.5 text-xs ${n ? `${c.cor} text-white` : "bg-pedra"}`}>{n}</span>
+            </button>
+          );
+        })}
+      </div>
+
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         {colunas.map((c) => {
           const lista = pedidos.filter((p) => p.status === c.status);
           return (
-            <section key={c.status}>
+            <section key={c.status} className={colunaCelular === c.status ? "" : "hidden lg:block"}>
               <h2 className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-grafite">
                 <span className={`h-3 w-3 rounded-full ${c.cor}`} /> {c.titulo} ({lista.length})
               </h2>
@@ -209,7 +229,7 @@ export function PainelCozinha({ tenantId, nomeEstabelecimento, inicial }: { tena
 
       {guia && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4">
-          <div className="card max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-b-none p-5 sm:rounded-b-[18px]">
+          <div className="card max-h-[92dvh] w-full max-w-lg rolagem rounded-b-none p-5 pb-seguro sm:rounded-b-[18px] sm:pb-5">
             <div className="flex items-center">
               <h2 className="text-lg font-extrabold">Como ligar a impressora</h2>
               <button onClick={() => setGuia(false)} className="ml-auto p-2" aria-label="Fechar"><X className="h-5 w-5" /></button>

@@ -87,14 +87,14 @@ export function PainelNav({ tenant, papel, nome, outros }: Props) {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex items-center justify-between bg-carvao px-4 py-3 lg:hidden">
+      <header className="pt-seguro sticky top-0 z-30 flex items-center justify-between bg-carvao px-4 pb-3 lg:hidden">
         <LogoMarca escuro size={24} />
         <button onClick={() => setAberto(true)} className="rounded-lg p-2 text-papel" aria-label="Abrir menu"><Menu className="h-5 w-5" /></button>
       </header>
       {aberto && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <button className="absolute inset-0 bg-black/40" onClick={() => setAberto(false)} aria-label="Fechar menu" />
-          <aside className="relative flex h-full w-72 flex-col bg-carvao">
+          <aside className="pt-seguro pb-seguro relative flex h-full w-72 flex-col rolagem bg-carvao">
             <button onClick={() => setAberto(false)} className="absolute right-3 top-4 p-2 text-papel" aria-label="Fechar"><X className="h-5 w-5" /></button>
             {conteudo}
           </aside>

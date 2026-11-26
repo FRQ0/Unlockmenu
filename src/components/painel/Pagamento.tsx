@@ -72,7 +72,7 @@ export function Pagamento({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 sm:items-center sm:p-4">
-      <div className="card max-h-[95dvh] w-full max-w-md overflow-y-auto rounded-b-none p-5 sm:rounded-b-[18px]">
+      <div className="card max-h-[95dvh] w-full max-w-md rolagem rounded-b-none p-5 pb-seguro sm:rounded-b-[18px] sm:pb-5">
         <div className="flex items-center">
           <div>
             <p className="text-xs text-grafite">{titulo}</p>

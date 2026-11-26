@@ -319,7 +319,7 @@ function EditorProduto({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4">
-      <form onSubmit={salvar} className="card relative max-h-[95dvh] w-full max-w-3xl overflow-y-auto rounded-b-none p-5 sm:rounded-b-[18px]">
+      <form onSubmit={salvar} className="card relative max-h-[95dvh] w-full max-w-3xl rolagem rounded-b-none p-5 pb-seguro sm:rounded-b-[18px] sm:pb-5">
         <div className="mb-4 flex items-center">
           <h2 className="text-lg font-extrabold">{produto ? "Editar prato" : "Novo prato"}</h2>
           <button type="button" onClick={onFechar} className="ml-auto p-2" aria-label="Fechar"><X className="h-5 w-5" /></button>

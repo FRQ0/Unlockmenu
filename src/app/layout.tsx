@@ -11,6 +11,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  interactiveWidget: "resizes-content", // teclado do Android encolhe a tela em vez de cobrir o campo
   themeColor: "#F6F4EF",
 };
 

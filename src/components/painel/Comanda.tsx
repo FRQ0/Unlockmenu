@@ -92,7 +92,7 @@ export function Comanda({
         </nav>
       </div>
 
-      <ul className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
+      <ul className="flex-1 space-y-2 rolagem px-4 py-3">
         {lista.map((p) => {
           const l = itens[p.id];
           const q = l?.qtd ?? 0;

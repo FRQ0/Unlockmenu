@@ -82,7 +82,7 @@ export function ContaMesa({
           <div className="flex justify-center p-10">{erro ? <p className="text-sm text-estado-vermelho">{erro}</p> : <Loader2 className="h-6 w-6 animate-spin" />}</div>
         ) : (
           <>
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 rolagem p-4">
               {!dados.pedidos.length && <p className="py-6 text-center text-sm text-grafite">Nenhum pedido nesta mesa ainda.</p>}
               {dados.pedidos.map((p) => (
                 <div key={p.id} className="border-b border-pedra py-3 last:border-0">

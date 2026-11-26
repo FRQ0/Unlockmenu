@@ -2,6 +2,8 @@ import type { Config } from "tailwindcss";
 
 export default {
   content: ["./src/**/*.{ts,tsx}"],
+  // hover só em aparelho com mouse: no celular o "hover" ficava grudado depois do toque
+  future: { hoverOnlyWhenSupported: true },
   theme: {
     extend: {
       colors: {

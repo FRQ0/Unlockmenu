@@ -12,23 +12,32 @@
   color-scheme: light;
 }
 
-html { -webkit-text-size-adjust: 100%; }
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent; /* sem o "flash" cinza ao tocar */
+  overscroll-behavior: none; /* sem puxar-para-atualizar/elástico na página toda (sensação de app) */
+}
+/* iPhone dá zoom sozinho em campo com letra < 16px */
+input, textarea, select { font-size: 16px; }
+/* toque responde na hora (sem os 300 ms de espera do duplo toque) */
+button, a, [role="button"], label, summary { touch-action: manipulation; }
+/* segurar o dedo num botão não seleciona o texto dele */
+button, [role="button"], summary { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 body {
   background: #F6F4EF;
   color: #17181C;
   font-family: "Manrope Variable", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-  -webkit-tap-highlight-color: transparent;
 }
 
 @layer components {
   .card { @apply rounded-[18px] bg-white shadow-suave; }
-  .btn { @apply inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition active:scale-[.98] disabled:opacity-50 disabled:pointer-events-none; }
+  .btn { @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition active:scale-[.97] active:brightness-95 disabled:opacity-50 disabled:pointer-events-none; }
   .btn-primario { @apply btn bg-areia text-carvao hover:brightness-95; }
   .btn-escuro { @apply btn bg-carvao text-papel hover:bg-black; }
   .btn-secundario { @apply btn border border-pedra bg-white text-carvao hover:bg-papel; }
   .btn-perigo { @apply btn bg-estado-vermelho text-white hover:brightness-95; }
-  .campo { @apply w-full rounded-xl border border-pedra bg-white px-3 py-2.5 text-sm outline-none transition focus:border-areia focus:ring-2 focus:ring-areia/30; }
+  .campo { @apply w-full rounded-xl border border-pedra bg-white px-3 py-2.5 text-base outline-none transition focus:border-areia focus:ring-2 focus:ring-areia/30; }
   .rotulo { @apply mb-1 block text-xs font-semibold uppercase tracking-wide text-grafite; }
   .selo { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide; }
 }
@@ -48,3 +57,9 @@ body {
   .ticket, .ticket * { visibility: visible !important; }
   .ticket { display: block !important; position: absolute; left: 0; top: 0; width: 72mm; color: #000; background: #fff; font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
 }
+
+/* listas e janelas internas: rolam sem arrastar a página de trás */
+.rolagem { overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+/* espaço da barra do iPhone (home indicator) em barras e janelas presas embaixo */
+.pb-seguro { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+.pt-seguro { padding-top: max(.75rem, env(safe-area-inset-top)); }

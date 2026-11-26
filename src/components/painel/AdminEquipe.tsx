@@ -111,7 +111,7 @@ export function AdminEquipe({ iniciais, eu, slug, setores, areas, temCozinha }: 
 
       {novo && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4">
-          <form onSubmit={criar} className="card max-h-[95dvh] w-full max-w-md space-y-4 overflow-y-auto rounded-b-none p-5 sm:rounded-b-[18px]" autoComplete="off">
+          <form onSubmit={criar} className="card max-h-[95dvh] w-full max-w-md space-y-4 rolagem rounded-b-none p-5 pb-seguro sm:rounded-b-[18px] sm:pb-5" autoComplete="off">
             <div className="flex items-center">
               <h2 className="text-lg font-extrabold">Novo funcionário</h2>
               <button type="button" onClick={() => setNovo(false)} className="ml-auto p-2" aria-label="Fechar"><X className="h-5 w-5" /></button>
@@ -184,7 +184,7 @@ function EditarFuncionario({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4">
-      <form onSubmit={salvar} className="card max-h-[95dvh] w-full max-w-md space-y-4 overflow-y-auto rounded-b-none p-5 sm:rounded-b-[18px]">
+      <form onSubmit={salvar} className="card max-h-[95dvh] w-full max-w-md space-y-4 rolagem rounded-b-none p-5 pb-seguro sm:rounded-b-[18px] sm:pb-5">
         <div className="flex items-center">
           <h2 className="text-lg font-extrabold">Editar {m.nome}</h2>
           <button type="button" onClick={onFechar} className="ml-auto p-2" aria-label="Fechar"><X className="h-5 w-5" /></button>
