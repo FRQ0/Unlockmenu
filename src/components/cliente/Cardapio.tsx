@@ -103,6 +103,7 @@ export function Cardapio({ tenant, mesa, categorias, produtos }: Props) {
               onClick={() => abrir(p)}
               className={`card flex w-full gap-3 p-3 text-left transition active:scale-[.99] ${p.disponivel ? "" : "opacity-55"}`}
             >
+              {(p.foto_url || p.poster_url || p.video_url) && (
               <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-pedra">
                 {(p.foto_url || p.poster_url) && (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -114,7 +115,8 @@ export function Cardapio({ tenant, mesa, categorias, produtos }: Props) {
                   </span>
                 )}
               </div>
-              <div className="min-w-0 flex-1">
+              )}
+              <div className="min-w-0 flex-1 py-1">
                 <div className="flex items-start gap-2">
                   <h2 className="flex-1 font-bold leading-snug">{p.nome}</h2>
                   {p.destaque && <Star className="mt-0.5 h-4 w-4 shrink-0 fill-marca text-marca" aria-label="Destaque" />}
