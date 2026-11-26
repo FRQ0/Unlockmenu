@@ -27,6 +27,7 @@ export type Tenant = {
   pix_chave: string | null;
   pix_nome: string | null;
   pix_cidade: string | null;
+  infinitepay_handle: string | null;
   created_at: string;
 };
 
@@ -73,6 +74,6 @@ export type Chamado = {
 };
 
 export const TENANT_COLS =
-  "id,nome,slug,logo_url,capa_url,cor_primaria,cor_secundaria,instagram,whatsapp,endereco,horarios,google_review_url,modo_atendimento,alerta_minutos,plano,status,trial_ends_at,pago_ate,dominio_custom,pix_chave,pix_nome,pix_cidade,created_at";
+  "id,nome,slug,logo_url,capa_url,cor_primaria,cor_secundaria,instagram,whatsapp,endereco,horarios,google_review_url,modo_atendimento,alerta_minutos,plano,status,trial_ends_at,pago_ate,dominio_custom,pix_chave,pix_nome,pix_cidade,infinitepay_handle,created_at";
 export const PRODUTO_COLS =
   "id,tenant_id,categoria_id,nome,descricao,preco,preco_antigo,foto_url,video_url,poster_url,destaque,disponivel,ordem,tags,combina_com";

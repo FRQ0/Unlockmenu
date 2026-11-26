@@ -41,6 +41,7 @@ export default async function GarcomPage() {
       eu={{ id: user.id, nome: membership.nome, papel: membership.papel }}
       pix={tenant.pix_chave ? { chave: tenant.pix_chave, nome: tenant.pix_nome ?? tenant.nome, cidade: tenant.pix_cidade ?? "BRASIL" } : null}
       comPagamento={tenantHas(tenant, "pagamentos")}
+      infinitepay={tenantHas(tenant, "pagamentos") && !!tenant.infinitepay_handle}
     />
   );
 }

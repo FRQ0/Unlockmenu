@@ -19,6 +19,7 @@ type Config = {
   pix_chave: string | null;
   pix_nome: string | null;
   pix_cidade: string | null;
+  infinitepay_handle: string | null;
 };
 
 export function AdminConfig({ inicial, slug, recursos }: { inicial: Config; slug: string; recursos: { pagamentos: boolean; cores: boolean; avaliacao: boolean; alerta: boolean } }) {
@@ -64,7 +65,7 @@ export function AdminConfig({ inicial, slug, recursos }: { inicial: Config; slug
         ...(recursos.cores ? { capa_url: f.capa_url, cor_primaria: f.cor_primaria, cor_secundaria: f.cor_secundaria } : {}),
         ...(recursos.avaliacao ? { google_review_url: vazio(f.google_review_url) } : {}),
         ...(recursos.alerta ? { alerta_minutos: f.alerta_minutos } : {}),
-        ...(recursos.pagamentos ? { pix_chave: vazio(f.pix_chave), pix_nome: vazio(f.pix_nome), pix_cidade: vazio(f.pix_cidade) } : {}),
+        ...(recursos.pagamentos ? { pix_chave: vazio(f.pix_chave), pix_nome: vazio(f.pix_nome), pix_cidade: vazio(f.pix_cidade), infinitepay_handle: vazio(f.infinitepay_handle)?.replace(/^\$/, "").toLowerCase() ?? null } : {}),
       });
       setOk(true);
     } catch (e) {
@@ -202,6 +203,11 @@ export function AdminConfig({ inicial, slug, recursos }: { inicial: Config; slug
                   </div>
                 </div>
                 <p className="text-xs text-grafite">Celular no formato +55DDD número. Faça um Pix de teste de R$ 0,01 antes de usar com clientes.</p>
+                <div className="border-t border-pedra pt-4">
+                  <label className="rotulo" htmlFor="ipay">InfiniteTag da InfinitePay (opcional)</label>
+                  <input id="ipay" maxLength={41} {...txt("infinitepay_handle")} className="campo" placeholder="ex.: espetariadofabinho" autoCapitalize="none" />
+                  <p className="mt-1 text-xs text-grafite">É o seu nome de usuário no app InfinitePay (sem o $). Libera cobrar cartão por aproximação no celular e link/QR que dá baixa sozinho. O dinheiro cai direto na sua conta InfinitePay.</p>
+                </div>
               </>
             ) : (
               bloqueado("Pagamentos pelo sistema no plano Completo.")

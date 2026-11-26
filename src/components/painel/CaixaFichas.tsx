@@ -26,6 +26,7 @@ export function CaixaFichas({
   pix,
   resumoInicial,
   podeCancelar,
+  infinitepay = false,
 }: {
   nomeEstabelecimento: string;
   categorias: { id: string; nome: string }[];
@@ -33,6 +34,7 @@ export function CaixaFichas({
   pix: PixConfig;
   resumoInicial: Resumo;
   podeCancelar: boolean;
+  infinitepay?: boolean;
 }) {
   const [aba, setAba] = useState(categorias[0]?.id ?? "__todos");
   const [carrinho, setCarrinho] = useState<Record<string, number>>({});
@@ -94,6 +96,24 @@ export function CaixaFichas({
       setErro(e instanceof Error ? e.message : "Erro");
     }
   }
+
+  // voltou do app InfinitePay (aproximação): recupera a venda e conclui com a cobrança paga
+  useEffect(() => {
+    const id = new URLSearchParams(location.search).get("cobranca");
+    if (!id) return;
+    history.replaceState(null, "", "/app/caixa");
+    (async () => {
+      try {
+        const salvo = JSON.parse(sessionStorage.getItem("caixa_pendente") ?? "null") as { carrinho: Record<string, number>; pagos: PagamentoInput[]; cobranca: string } | null;
+        sessionStorage.removeItem("caixa_pendente");
+        if (!salvo || salvo.cobranca !== id) return;
+        const s = await api<{ status: string; metodo: "pix" | "debito" | "credito" | null; valor: number }>(`/api/app/cobrancas/${id}`, "GET");
+        if (s.status !== "paga") return setErro("O pagamento não foi confirmado. Cobre de novo.");
+        setCarrinho(salvo.carrinho);
+        setPagos([...salvo.pagos, { metodo: s.metodo ?? "credito", valor: s.valor, cobranca_id: id }]);
+      } catch {}
+    })();
+  }, []);
 
   useEffect(() => {
     if (!pagando && pagos.length && falta === 0 && !finalizando && !fichas) finalizar(pagos);
@@ -200,6 +220,12 @@ export function CaixaFichas({
           pix={pix}
           txid={`FICHA${Date.now().toString(36).toUpperCase()}`}
           onFechar={() => setPagando(false)}
+          infinitepay={infinitepay ? { origem: "fichas" } : null}
+          onAntesDeSair={(cobranca) => {
+            try {
+              sessionStorage.setItem("caixa_pendente", JSON.stringify({ carrinho, pagos, cobranca }));
+            } catch {}
+          }}
           onConfirmar={async (p) => {
             const novos = [...pagos, p];
             setPagos(novos);

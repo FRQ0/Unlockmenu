@@ -285,3 +285,35 @@ select public.t_expect_eq($q$select count(*) from public.fichas where status = '
 select public.t_as('00000000-0000-0000-0000-00000000000d');
 select public.t_expect_error($q$select public.vender_fichas((select jsonb_build_array(jsonb_build_object('product_id', id, 'quantidade', 1)) from public.products where nome = 'Pizza'), '[{"metodo":"pix","valor":59}]')$q$, 'recurso_indisponivel_no_plano: fichas', 'Profissional não usa fichas');
 reset role;
+
+-- ---------------------------------------------------------------------------
+-- 8. Cobranças InfinitePay
+-- ---------------------------------------------------------------------------
+set role authenticated;
+select public.t_as('00000000-0000-0000-0000-0000000000a2'); -- garçom A
+select public.t_ok($q$select public.criar_pedido('aaaaaaaa-3333-0000-0000-000000000001', '[{"product_id":"aaaaaaaa-2222-0000-0000-000000000001","quantidade":1}]')$q$, 'pedido para cobrar');
+select public.t_expect_error($q$select public.criar_cobranca('aaaaaaaa-0000-0000-0000-000000000000', 'mesa', 'link', 'aaaaaaaa-3333-0000-0000-000000000001', 500, null, 1)$q$, 'pagamento_maior_que_total', 'cobrança não passa da conta');
+select public.t_expect_error($q$select public.criar_cobranca('bbbbbbbb-0000-0000-0000-000000000000', 'fichas', 'link', null, 10, null, 1)$q$, 'permissão', 'não cobra em nome de outro estabelecimento');
+select public.t_expect_error($q$select public.criar_cobranca('aaaaaaaa-0000-0000-0000-000000000000', 'mesa', 'tap', 'aaaaaaaa-3333-0000-0000-000000000001', 10, 'debito', 3)$q$, 'cobranca_invalida', 'débito não parcela');
+select public.t_expect_eq($q$select count(*) from public.criar_cobranca('aaaaaaaa-0000-0000-0000-000000000000', 'mesa', 'link', 'aaaaaaaa-3333-0000-0000-000000000001', 89.9, null, 1)$q$, 1, 'garçom cria cobrança da mesa');
+select public.t_expect_error('select token from public.cobrancas', 'permission denied', 'token secreto da cobrança não é legível');
+select public.t_expect_error($q$select public.confirmar_cobranca((select id from public.cobrancas limit 1), 'pix', 'x', null, null, null)$q$, 'permission denied', 'garçom não confirma cobrança sozinho');
+reset role;
+set role service_role;
+select public.t_expect_eq($q$select count(*) from public.confirmar_cobranca((select id from public.cobrancas where origem = 'mesa' limit 1), 'pix', 'nsu-1', null, 'slug', null) where confirmar_cobranca = 'usada'$q$, 1, 'servidor confirma: vira pagamento da mesa');
+select public.t_expect_eq($q$select count(*) from public.confirmar_cobranca((select id from public.cobrancas where origem = 'mesa' limit 1), 'pix', 'nsu-1', null, 'slug', null) where confirmar_cobranca = 'usada'$q$, 1, 'aviso repetido não duplica');
+select public.t_expect_eq($q$select count(*) from public.pagamentos where cobranca_id is not null$q$, 1, 'um pagamento só por cobrança');
+reset role;
+set role authenticated;
+select public.t_as('00000000-0000-0000-0000-0000000000a2');
+select public.t_expect_eq($q$select count(*) from public.criar_cobranca('aaaaaaaa-0000-0000-0000-000000000000', 'fichas', 'tap', null, 14, 'credito', 1)$q$, 1, 'cobrança de fichas');
+select public.t_expect_error($q$select public.vender_fichas('[{"product_id":"aaaaaaaa-2222-0000-0000-000000000002","quantidade":1}]', jsonb_build_array(jsonb_build_object('metodo','credito','valor',14,'cobranca_id',(select id from public.cobrancas where origem = 'fichas'))))$q$, 'cobranca_nao_paga', 'ficha não sai com cobrança não paga');
+reset role;
+set role service_role;
+select public.confirmar_cobranca((select id from public.cobrancas where origem = 'fichas'), null, 'nsu-2', 'AUT1', null, null);
+reset role;
+set role authenticated;
+select public.t_as('00000000-0000-0000-0000-0000000000a2');
+select public.t_expect_eq($q$select count(*) from public.vender_fichas('[{"product_id":"aaaaaaaa-2222-0000-0000-000000000002","quantidade":1}]', jsonb_build_array(jsonb_build_object('metodo','credito','valor',14,'cobranca_id',(select id from public.cobrancas where origem = 'fichas'))))$q$, 1, 'ficha sai com cobrança paga');
+select public.t_expect_error($q$select public.vender_fichas('[{"product_id":"aaaaaaaa-2222-0000-0000-000000000002","quantidade":1}]', jsonb_build_array(jsonb_build_object('metodo','credito','valor',14,'cobranca_id',(select id from public.cobrancas where origem = 'fichas'))))$q$, 'cobranca_nao_paga', 'cobrança paga não serve duas vezes');
+reset role;

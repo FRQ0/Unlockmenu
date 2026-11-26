@@ -14,7 +14,7 @@ export const PATCH = staffRoute(PODE_GERIR, async ({ supabase, tenant }, req) =>
   if (mudou("google_review_url") && body.google_review_url) requireFeature(tenant, "avaliacao_google");
   if (mudou("modo_atendimento") && body.modo_atendimento === "chamar_pedir") requireFeature(tenant, "pedidos");
   if (mudou("alerta_minutos")) requireFeature(tenant, "alerta_gerente");
-  if (mudou("pix_chave") || mudou("pix_nome") || mudou("pix_cidade")) requireFeature(tenant, "pagamentos");
+  if (mudou("pix_chave") || mudou("pix_nome") || mudou("pix_cidade") || mudou("infinitepay_handle")) requireFeature(tenant, "pagamentos");
 
   const { data, error } = await supabase.from("tenants").update(body).eq("id", tenant.id).select(TENANT_COLS).single();
   if (error) throw fromDbError(error);

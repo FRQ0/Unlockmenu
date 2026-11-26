@@ -19,6 +19,7 @@ export function ContaMesa({
   onFechada,
   pix,
   comPagamento,
+  infinitepay = false,
 }: {
   mesa: { id: string; nome: string };
   onFechar: () => void;
@@ -26,6 +27,7 @@ export function ContaMesa({
   onFechada: () => void;
   pix: PixConfig;
   comPagamento: boolean;
+  infinitepay?: boolean;
 }) {
   const [dados, setDados] = useState<Conta | null>(null);
   const [pagando, setPagando] = useState(false);
@@ -132,6 +134,8 @@ export function ContaMesa({
                   pix={pix}
                   txid={mesa.nome.replace(/\D/g, "") ? `MESA${mesa.nome.replace(/\D/g, "")}` : "MESA"}
                   onFechar={() => setPagando(false)}
+                  infinitepay={infinitepay ? { origem: "mesa", tableId: mesa.id } : null}
+                  onPago={() => { setPagando(false); carregar(); }}
                   onConfirmar={async (p) => {
                     await api(`/api/app/mesas/${mesa.id}/pagamentos`, "POST", { pagamentos: [p] });
                     setPagando(false);

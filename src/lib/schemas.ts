@@ -64,6 +64,7 @@ export const configTenant = z
     pix_chave: z.string().trim().min(3).max(77).nullable(),
     pix_nome: z.string().trim().min(1).max(25).nullable(),
     pix_cidade: z.string().trim().min(1).max(15).nullable(),
+    infinitepay_handle: z.string().trim().toLowerCase().regex(/^\$?[a-z0-9_.-]{2,40}$/).transform((v) => v.replace(/^\$/, "")).nullable(),
   })
   .partial()
   .strict();
@@ -175,6 +176,7 @@ const pagamento = z
     metodo: z.enum(["pix", "debito", "credito", "dinheiro"]),
     valor: z.number().positive().max(99999.99).transform((n) => Math.round(n * 100) / 100),
     recebido: z.number().positive().max(99999.99).optional(),
+    cobranca_id: uuid.optional(),
   })
   .strict();
 export const vendaFichas = z
@@ -185,3 +187,17 @@ export const vendaFichas = z
   .strict();
 export const pagamentoMesa = z.object({ pagamentos: z.array(pagamento).min(1).max(10) }).strict();
 export const usarFicha = z.object({ codigo: z.string().trim().min(4).max(20) }).strict();
+
+export const cobrancaCriar = z
+  .object({
+    origem: z.enum(["mesa", "fichas"]),
+    tipo: z.enum(["link", "tap"]),
+    table_id: uuid.optional(),
+    valor: z.number().min(1).max(99999.99),
+    metodo: z.enum(["debito", "credito"]).optional(),
+    parcelas: z.number().int().min(1).max(12).optional(),
+  })
+  .strict();
+export const cobrancaTap = z
+  .object({ nsu: z.string().trim().min(4).max(80), aut: z.string().trim().max(40).optional(), card_brand: z.string().trim().max(30).optional() })
+  .strict();

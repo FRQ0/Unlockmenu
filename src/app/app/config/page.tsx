@@ -24,6 +24,7 @@ export default async function ConfigPage() {
         pix_chave: tenant.pix_chave,
         pix_nome: tenant.pix_nome,
         pix_cidade: tenant.pix_cidade,
+        infinitepay_handle: tenant.infinitepay_handle,
       }}
       slug={tenant.slug}
       recursos={{ pagamentos: tenantHas(tenant, "pagamentos"), cores: tenantHas(tenant, "cores"), avaliacao: tenantHas(tenant, "avaliacao_google"), alerta: tenantHas(tenant, "alerta_gerente") }}

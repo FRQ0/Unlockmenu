@@ -3,12 +3,16 @@
 // Dá para dividir: cada confirmação registra uma parte, até cobrir o total.
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
-import { Banknote, Check, Copy, CreditCard, Loader2, QrCode, X } from "lucide-react";
+import { Banknote, Check, Copy, CreditCard, Link2, Loader2, QrCode, Smartphone, X } from "lucide-react";
 import { preco } from "@/lib/format";
 import { pixCopiaECola } from "@/lib/pix";
+import { deeplinkTap } from "@/lib/infinitepay";
+import { api } from "./api";
 
 export type PixConfig = { chave: string; nome: string; cidade: string } | null;
-export type PagamentoInput = { metodo: "pix" | "debito" | "credito" | "dinheiro"; valor: number; recebido?: number };
+export type PagamentoInput = { metodo: "pix" | "debito" | "credito" | "dinheiro"; valor: number; recebido?: number; cobranca_id?: string };
+export type InfinitePayCfg = { origem: "mesa" | "fichas"; tableId?: string } | null;
+type Metodo = PagamentoInput["metodo"] | "tap" | "link";
 
 const METODOS = [
   { id: "pix" as const, nome: "Pix", icone: QrCode },
@@ -29,6 +33,9 @@ export function Pagamento({
   txid,
   onConfirmar,
   onFechar,
+  infinitepay = null,
+  onPago,
+  onAntesDeSair,
 }: {
   titulo: string;
   falta: number;
@@ -36,8 +43,17 @@ export function Pagamento({
   txid: string;
   onConfirmar: (p: PagamentoInput) => Promise<void>;
   onFechar: () => void;
+  infinitepay?: InfinitePayCfg;
+  /** mesa: a cobrança da InfinitePay já virou pagamento no servidor */
+  onPago?: () => void;
+  /** antes de abrir o app InfinitePay (ex.: o caixa guarda o carrinho) */
+  onAntesDeSair?: (cobrancaId: string) => void;
 }) {
-  const [metodo, setMetodo] = useState<PagamentoInput["metodo"]>("pix");
+  const [metodo, setMetodo] = useState<Metodo>(infinitepay ? "tap" : "pix");
+  const [cartaoTap, setCartaoTap] = useState<"debito" | "credito">("credito");
+  const [parcelas, setParcelas] = useState(1);
+  const [cobranca, setCobranca] = useState<{ id: string; link_url: string } | null>(null);
+  const [linkQr, setLinkQr] = useState("");
   const [valorTxt, setValorTxt] = useState(falta.toFixed(2).replace(".", ","));
   const [recebidoTxt, setRecebidoTxt] = useState("");
   const [qr, setQr] = useState("");
@@ -56,12 +72,62 @@ export function Pagamento({
   }, [metodo, codigoPix]);
 
   const troco = metodo === "dinheiro" && recebido > valor ? recebido - valor : 0;
-  const valido = valor > 0 && (metodo !== "dinheiro" || !recebidoTxt || recebido >= valor) && (metodo !== "pix" || !!pix);
+  const valido = valor > 0 && (metodo !== "dinheiro" || !recebidoTxt || recebido >= valor) && (metodo !== "pix" || !!pix) && (metodo !== "tap" && metodo !== "link" ? true : valor >= 1);
+
+  // link InfinitePay: acompanha até o servidor confirmar (aviso da InfinitePay conferido na API deles)
+  useEffect(() => {
+    if (!cobranca) return;
+    QRCode.toDataURL(cobranca.link_url, { margin: 1, width: 520 }).then(setLinkQr).catch(() => {});
+    const t = setInterval(async () => {
+      try {
+        const s = await api<{ status: string; metodo: "pix" | "credito" | "debito" | null }>(`/api/app/cobrancas/${cobranca.id}`, "GET");
+        if (s.status === "usada" && infinitepay?.origem === "mesa") {
+          clearInterval(t);
+          onPago?.();
+        } else if (s.status === "paga") {
+          clearInterval(t);
+          await onConfirmar({ metodo: s.metodo ?? "credito", valor, cobranca_id: cobranca.id });
+        }
+      } catch {}
+    }, 3000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cobranca]);
+
+  async function fechar() {
+    if (cobranca) api(`/api/app/cobrancas/${cobranca.id}`, "DELETE").catch(() => {});
+    onFechar();
+  }
+
+  async function criarCobranca(tipo: "tap" | "link") {
+    return api<{ id: string; link_url?: string; handle?: string; resultUrl?: string }>("/api/app/cobrancas", "POST", {
+      origem: infinitepay!.origem,
+      tipo,
+      ...(infinitepay!.tableId ? { table_id: infinitepay!.tableId } : {}),
+      valor,
+      ...(tipo === "tap" ? { metodo: cartaoTap, parcelas: cartaoTap === "credito" ? parcelas : 1 } : {}),
+    });
+  }
 
   async function confirmar() {
     setErro(null);
     setSalvando(true);
     try {
+      if (metodo === "tap") {
+        const c = await criarCobranca("tap");
+        const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+        try {
+          sessionStorage.setItem("tap_volta", JSON.stringify({ id: c.id, origem: infinitepay!.origem, volta: location.pathname }));
+        } catch {}
+        onAntesDeSair?.(c.id);
+        location.href = deeplinkTap({ centavos: Math.round(valor * 100), metodo: cartaoTap, parcelas: cartaoTap === "credito" ? parcelas : 1, orderId: c.id, resultUrl: c.resultUrl!, handle: c.handle!, ios });
+        return;
+      }
+      if (metodo === "link") {
+        const c = await criarCobranca("link");
+        setCobranca({ id: c.id, link_url: c.link_url! });
+        return;
+      }
       await onConfirmar({ metodo, valor, ...(metodo === "dinheiro" && recebido > valor ? { recebido } : {}) });
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Erro ao registrar");
@@ -78,10 +144,26 @@ export function Pagamento({
             <p className="text-xs text-grafite">{titulo}</p>
             <p className="text-lg font-extrabold">Falta receber {preco(falta)}</p>
           </div>
-          <button onClick={onFechar} className="ml-auto p-2" aria-label="Fechar"><X className="h-5 w-5" /></button>
+          <button onClick={fechar} className="ml-auto p-2" aria-label="Fechar"><X className="h-5 w-5" /></button>
         </div>
 
-        <div className="mt-4 grid grid-cols-4 gap-2">
+        {infinitepay && (
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            {[
+              { id: "tap" as const, nome: "Cartão no celular", icone: Smartphone },
+              { id: "link" as const, nome: "Link / QR InfinitePay", icone: Link2 },
+            ].map((m) => (
+              <button
+                key={m.id}
+                onClick={() => { setMetodo(m.id); setCobranca(null); }}
+                className={`flex items-center justify-center gap-2 rounded-xl border px-2 py-3 text-xs font-bold ${metodo === m.id ? "border-carvao bg-carvao text-papel" : "border-pedra bg-white"}`}
+              >
+                <m.icone className="h-5 w-5 shrink-0" /> {m.nome}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="mt-2 grid grid-cols-4 gap-2">
           {METODOS.map((m) => (
             <button
               key={m.id}
@@ -120,6 +202,51 @@ export function Pagamento({
             </p>
           ))}
 
+        {metodo === "tap" && (
+          <div className="mt-4 space-y-3 rounded-2xl bg-papel p-4">
+            <div className="grid grid-cols-2 gap-2">
+              {(["debito", "credito"] as const).map((c) => (
+                <button key={c} onClick={() => setCartaoTap(c)} className={`rounded-xl py-2.5 text-sm font-bold ${cartaoTap === c ? "bg-carvao text-papel" : "bg-white"}`}>
+                  {c === "debito" ? "Débito" : "Crédito"}
+                </button>
+              ))}
+            </div>
+            {cartaoTap === "credito" && (
+              <select value={parcelas} onChange={(e) => setParcelas(Number(e.target.value))} className="campo" aria-label="Parcelas">
+                {Array.from({ length: 12 }, (_, i) => i + 1).filter((n) => valor / n >= 1).map((n) => (
+                  <option key={n} value={n}>{n === 1 ? "À vista" : `${n}x de ${preco(valor / n)}`}</option>
+                ))}
+              </select>
+            )}
+            <p className="text-xs text-grafite">Abre o app InfinitePay neste celular com o valor. O cliente encosta o cartão, e o app volta para cá com a confirmação. Precisa do app InfinitePay instalado e com NFC ligado.</p>
+          </div>
+        )}
+
+        {metodo === "link" && (
+          <div className="mt-4 rounded-2xl bg-papel p-4 text-center">
+            {cobranca ? (
+              <>
+                {linkQr ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={linkQr} alt="QR do link de pagamento" className="mx-auto h-56 w-56 rounded-xl bg-white p-2" />
+                ) : (
+                  <div className="mx-auto h-56 w-56 animate-pulse rounded-xl bg-pedra" />
+                )}
+                <p className="mt-2 text-sm font-semibold">Cliente lê o QR e paga no celular dele (Pix ou cartão)</p>
+                <p className="mt-1 flex items-center justify-center gap-2 text-xs text-grafite"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Aguardando a confirmação da InfinitePay...</p>
+                <button
+                  onClick={() => navigator.clipboard.writeText(cobranca.link_url).then(() => { setCopiado(true); setTimeout(() => setCopiado(false), 1500); })}
+                  className="btn-secundario mt-2 px-3 py-1.5 text-xs"
+                >
+                  <Copy className="h-3.5 w-3.5" /> {copiado ? "Copiado!" : "Copiar link (mandar no WhatsApp)"}
+                </button>
+              </>
+            ) : (
+              <p className="text-sm text-grafite">Gera um link de pagamento da InfinitePay com o valor. O pagamento dá baixa sozinho aqui quando for aprovado.</p>
+            )}
+          </div>
+        )}
+
         {(metodo === "debito" || metodo === "credito") && (
           <p className="mt-4 rounded-xl bg-papel p-3 text-sm text-grafite">
             Cobre o cartão pelo app de pagamento do estabelecimento (aproximação no celular ou link) e confirme aqui quando aprovar.
@@ -135,9 +262,16 @@ export function Pagamento({
         )}
 
         {erro && <p role="alert" className="mt-3 text-sm font-semibold text-estado-vermelho">{erro}</p>}
-        <button onClick={confirmar} disabled={!valido || salvando} className="btn-escuro mt-5 w-full py-3.5 text-base">
-          {salvando ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5" />} Recebi {preco(valor)} no {METODOS.find((m) => m.id === metodo)!.nome}
-        </button>
+        {!(metodo === "link" && cobranca) && (
+          <button onClick={confirmar} disabled={!valido || salvando} className="btn-escuro mt-5 w-full py-3.5 text-base">
+            {salvando ? <Loader2 className="h-5 w-5 animate-spin" /> : metodo === "tap" ? <Smartphone className="h-5 w-5" /> : metodo === "link" ? <QrCode className="h-5 w-5" /> : <Check className="h-5 w-5" />}
+            {metodo === "tap"
+              ? `Cobrar ${preco(valor)} no InfinitePay`
+              : metodo === "link"
+                ? `Gerar QR de ${preco(valor)}`
+                : `Recebi ${preco(valor)} no ${METODOS.find((m) => m.id === metodo)!.nome}`}
+          </button>
+        )}
       </div>
     </div>
   );

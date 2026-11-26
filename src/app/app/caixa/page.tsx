@@ -22,6 +22,7 @@ export default async function CaixaPage() {
       produtos={(prods ?? []).map((p) => ({ ...p, preco: Number(p.preco) }))}
       pix={tenant.pix_chave ? { chave: tenant.pix_chave, nome: tenant.pix_nome ?? tenant.nome, cidade: tenant.pix_cidade ?? "BRASIL" } : null}
       resumoInicial={resumo}
+      infinitepay={tenantHas(tenant, "pagamentos") && !!tenant.infinitepay_handle}
       podeCancelar={membership.papel === "dono" || membership.papel === "gerente"}
     />
   );

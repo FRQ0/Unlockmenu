@@ -31,6 +31,8 @@ export function fromDbError(err: { message?: string; code?: string } | null | un
   if (msg.includes("mesa_sem_conta")) return new HttpError(404, "Esta mesa não tem conta aberta.");
   if (msg.includes("venda_nao_encontrada")) return new HttpError(404, "Venda não encontrada ou já cancelada.");
   if (msg.includes("pagamento_nao_encontrado")) return new HttpError(404, "Pagamento não encontrado.");
+  if (msg.includes("cobranca_nao_paga")) return new HttpError(409, "O pagamento na InfinitePay ainda não foi confirmado.");
+  if (msg.includes("cobranca_invalida")) return new HttpError(400, "Cobrança inválida (valor mínimo R$ 1,00; débito sem parcelas).");
   if (msg.includes("pedido_ja_fechado")) return new HttpError(409, "Esta conta já foi fechada.");
   if (err?.code === "42501" || msg.includes("row-level security") || msg.includes("permission denied"))
     return new HttpError(403, "Sem permissão.");
