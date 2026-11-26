@@ -10,7 +10,9 @@ import { tenantHas } from "@/lib/plans";
 export const runtime = "nodejs";
 
 export const GET = staffRoute(PODE_GERIR, async ({ supabase, tenant }, req) => {
-  const idsParam = new URL(req.url).searchParams.get("ids");
+  const sp = new URL(req.url).searchParams;
+  const idsParam = sp.get("ids");
+  const formato = sp.get("formato") === "a6" ? "a6" : "a4";
   const ids = idsParam ? idsParam.split(",").slice(0, 200).map((i) => uuid.parse(i)) : null;
   let q = supabase.from("tables").select("nome,token_publico").eq("tenant_id", tenant.id).order("ordem").order("nome");
   if (ids) q = q.in("id", ids);
@@ -21,6 +23,7 @@ export const GET = staffRoute(PODE_GERIR, async ({ supabase, tenant }, req) => {
     logoUrl: tenant.logo_url,
     cor: tenantHas(tenant, "cores") ? tenant.cor_primaria : null,
     mesas: mesas.map((m) => ({ nome: m.nome, url: urlMesa(tenant, m.token_publico) })),
+    formato,
   });
   return new Response(Buffer.from(pdf), {
     headers: {

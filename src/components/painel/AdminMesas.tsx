@@ -60,7 +60,7 @@ export function AdminMesas({ iniciais, max, setores }: { iniciais: Mesa[]; max: 
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-extrabold tracking-tight">Mesas e QR</h1>
         <span className="text-sm text-grafite">{mesas.length}{max ? ` de ${max}` : ""} mesas</span>
-        <a href="/api/app/mesas/pdf" className="btn-escuro ml-auto"><Download className="h-4 w-4" /> Baixar placas (PDF)</a>
+        <a href="/api/app/mesas/pdf" className="btn-escuro ml-auto"><Download className="h-4 w-4" /> Baixar placas (4 por folha A4)</a>
       </div>
 
       <form onSubmit={(e) => { e.preventDefault(); criar(); }} className="card mt-5 flex flex-wrap items-end gap-3 p-4">
