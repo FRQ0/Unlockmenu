@@ -319,9 +319,9 @@ export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, geren
       {cardapio && prontos.length > 0 && (
         <section className="mt-6">
           <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-estado-verde">Prontos para levar ({prontos.length})</h2>
-          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {prontos.map((p) => (
-              <li key={p.id} className="card flex items-center gap-3 p-3 ring-2 ring-estado-verde">
+              <li key={p.id} className="card flex min-w-0 items-center gap-3 p-3 ring-2 ring-estado-verde">
                 <div className="min-w-0 flex-1">
                   <p className="font-extrabold">{p.mesa}</p>
                   <p className="truncate text-sm text-grafite">{p.itens.map((i) => `${i.quantidade}× ${i.nome}`).join(", ")}</p>
@@ -339,11 +339,11 @@ export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, geren
         {chamados.length === 0 ? (
           <p className="card p-6 text-center text-sm text-grafite">Nenhuma mesa chamando agora.</p>
         ) : (
-          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {chamados.map((c) => {
               const atrasado = minutosDesde(c.criado_em, agora) >= alertaMinutos && c.status === "aberto";
               return (
-                <li key={c.id} className={`card overflow-hidden ${atrasado ? "ring-2 ring-estado-vermelho" : ""}`}>
+                <li key={c.id} className={`card min-w-0 overflow-hidden ${atrasado ? "ring-2 ring-estado-vermelho" : ""}`}>
                   <div className={`flex items-center gap-3 px-4 py-3 text-white ${atrasado ? "bg-estado-vermelho" : c.tipo === "conta" ? "bg-estado-azul" : "bg-estado-laranja"}`}>
                     {c.tipo === "conta" ? <Receipt className="h-5 w-5" /> : <Bell className="h-5 w-5" />}
                     <div className="min-w-0 flex-1">

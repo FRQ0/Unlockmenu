@@ -22,7 +22,7 @@ function Arrastavel({ id, children }: { id: string; children: (alca: React.React
   return (
     <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 10 : undefined }} className={isDragging ? "opacity-80" : ""}>
       {children(
-        <button {...attributes} {...listeners} className="cursor-grab touch-none p-1 text-grafite active:cursor-grabbing" aria-label="Arrastar para reordenar">
+        <button {...attributes} {...listeners} className="flex h-10 w-8 shrink-0 cursor-grab touch-none items-center justify-center text-grafite active:cursor-grabbing" aria-label="Arrastar para reordenar">
           <GripVertical className="h-4 w-4" />
         </button>,
       )}
@@ -128,8 +128,8 @@ export function AdminCardapio({ categoriasIniciais, produtosIniciais, recursos, 
       </div>
       {erro && <p role="alert" className="mt-3 rounded-xl bg-estado-vermelho/10 p-3 text-sm font-semibold text-estado-vermelho">{erro}</p>}
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
-        <section className="card h-fit p-4">
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[280px_1fr]">
+        <section className="card h-fit min-w-0 p-4">
           <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-grafite">Categorias</h2>
           <button onClick={() => setCatAtiva(TODOS)} className={`mb-1 w-full rounded-xl px-3 py-2 text-left text-sm font-semibold ${catAtiva === TODOS ? "bg-areia/25" : "hover:bg-papel"}`}>
             Todos ({produtos.length})
@@ -145,9 +145,9 @@ export function AdminCardapio({ categoriasIniciais, produtosIniciais, recursos, 
                         <button onClick={() => setCatAtiva(c.id)} className={`flex-1 truncate py-2 text-left text-sm font-semibold ${c.ativa ? "" : "text-grafite line-through"}`}>
                           {c.nome} <span className="font-normal text-grafite">({produtos.filter((p) => p.categoria_id === c.id).length})</span>
                         </button>
-                        <button onClick={() => renomearCategoria(c)} className="p-1 text-grafite" aria-label="Renomear"><Pencil className="h-3.5 w-3.5" /></button>
+                        <button onClick={() => renomearCategoria(c)} className="flex h-10 w-9 shrink-0 items-center justify-center text-grafite" aria-label="Renomear"><Pencil className="h-4 w-4" /></button>
                         <button onClick={() => alternarCategoria(c)} className="px-1 text-[10px] font-bold uppercase text-grafite">{c.ativa ? "Ocultar" : "Mostrar"}</button>
-                        <button onClick={() => apagarCategoria(c)} className="p-1 text-estado-vermelho" aria-label="Apagar"><Trash2 className="h-3.5 w-3.5" /></button>
+                        <button onClick={() => apagarCategoria(c)} className="flex h-10 w-9 shrink-0 items-center justify-center text-estado-vermelho" aria-label="Apagar"><Trash2 className="h-4 w-4" /></button>
                       </div>
                     )}
                   </Arrastavel>
@@ -161,7 +161,7 @@ export function AdminCardapio({ categoriasIniciais, produtosIniciais, recursos, 
           </form>
         </section>
 
-        <section>
+        <section className="min-w-0">
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={fimArrastoProdutos}>
             <SortableContext items={lista.map((p) => p.id)} strategy={verticalListSortingStrategy}>
               <ul className="space-y-2">

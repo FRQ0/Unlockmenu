@@ -108,8 +108,8 @@ export function CaixaFichas({
       </div>
       {erro && <p role="alert" className="mt-3 rounded-xl bg-estado-vermelho/10 p-3 text-sm font-semibold text-estado-vermelho">{erro}</p>}
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_340px]">
-        <section>
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[1fr_340px]">
+        <section className="min-w-0">
           <nav className="no-scrollbar -mx-3 flex gap-2 overflow-x-auto px-3 pb-2">
             {[...categorias, { id: "__todos", nome: "Todos" }].map((c) => (
               <button key={c.id} onClick={() => setAba(c.id)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold ${aba === c.id ? "bg-carvao text-papel" : "bg-white shadow-suave"}`}>

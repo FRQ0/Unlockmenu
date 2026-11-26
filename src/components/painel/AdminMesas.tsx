@@ -90,7 +90,7 @@ export function AdminMesas({ iniciais, max, setores }: { iniciais: Mesa[]; max: 
                 defaultValue={m.nome}
                 maxLength={30}
                 onBlur={(e) => e.target.value.trim() && e.target.value !== m.nome && editar(m, { nome: e.target.value.trim() })}
-                className="w-full rounded-lg bg-transparent px-1 font-bold outline-none focus:bg-papel"
+                className="w-full rounded-lg bg-transparent px-1 py-1 text-base font-bold outline-none focus:bg-papel"
                 aria-label="Nome da mesa"
               />
               {setores && (
@@ -99,7 +99,7 @@ export function AdminMesas({ iniciais, max, setores }: { iniciais: Mesa[]; max: 
                   maxLength={30}
                   placeholder="Setor"
                   onBlur={(e) => e.target.value !== (m.area ?? "") && editar(m, { area: e.target.value.trim() || null })}
-                  className="w-full rounded-lg bg-transparent px-1 text-sm text-grafite outline-none focus:bg-papel"
+                  className="w-full rounded-lg bg-transparent px-1 py-1 text-base text-grafite outline-none focus:bg-papel"
                   aria-label="Setor"
                 />
               )}
@@ -112,7 +112,7 @@ export function AdminMesas({ iniciais, max, setores }: { iniciais: Mesa[]; max: 
                 </button>
                 <a href={`/api/app/mesas/pdf?ids=${m.id}`} className="btn-secundario px-2 py-1 text-xs"><Download className="h-3 w-3" /> PDF</a>
                 <button onClick={() => editar(m, { ativa: !m.ativa })} className="btn px-2 py-1 text-xs text-grafite">{m.ativa ? "Desativar" : "Ativar"}</button>
-                <button onClick={() => apagar(m)} className="p-1 text-estado-vermelho" aria-label="Apagar mesa"><Trash2 className="h-3.5 w-3.5" /></button>
+                <button onClick={() => apagar(m)} className="flex h-10 w-10 items-center justify-center text-estado-vermelho" aria-label="Apagar mesa"><Trash2 className="h-4 w-4" /></button>
               </div>
             </div>
           </li>
