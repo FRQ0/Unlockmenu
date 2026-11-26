@@ -1,5 +1,5 @@
 "use client";
-// Receber pagamento: Pix (QR com o valor certo), débito, crédito e dinheiro (com troco).
+// Receber pagamento: cartão pelo app InfinitePay (aproximação), Pix (QR com o valor certo), link/QR InfinitePay e dinheiro.
 // Dá para dividir: cada confirmação registra uma parte, até cobrir o total.
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
@@ -12,14 +12,8 @@ import { api } from "./api";
 export type PixConfig = { chave: string; nome: string; cidade: string } | null;
 export type PagamentoInput = { metodo: "pix" | "debito" | "credito" | "dinheiro"; valor: number; recebido?: number; cobranca_id?: string };
 export type InfinitePayCfg = { origem: "mesa" | "fichas"; tableId?: string } | null;
-type Metodo = PagamentoInput["metodo"] | "tap" | "link";
-
-const METODOS = [
-  { id: "pix" as const, nome: "Pix", icone: QrCode },
-  { id: "debito" as const, nome: "Débito", icone: CreditCard },
-  { id: "credito" as const, nome: "Crédito", icone: CreditCard },
-  { id: "dinheiro" as const, nome: "Dinheiro", icone: Banknote },
-];
+// Abas: "cartao" cobra de verdade pelo app InfinitePay (ou, escondido, só anota um cartão de outra maquininha)
+type Metodo = "cartao" | "pix" | "link" | "dinheiro";
 
 function numero(s: string) {
   const n = Number(s.replace(/\./g, "").replace(",", "."));
@@ -49,7 +43,9 @@ export function Pagamento({
   /** antes de abrir o app InfinitePay (ex.: o caixa guarda o carrinho) */
   onAntesDeSair?: (cobrancaId: string) => void;
 }) {
-  const [metodo, setMetodo] = useState<Metodo>(infinitepay ? "tap" : "pix");
+  const [metodo, setMetodo] = useState<Metodo>(infinitepay ? "cartao" : "pix");
+  const [cartaoManual, setCartaoManual] = useState(false);
+  const [confirmoAprovado, setConfirmoAprovado] = useState(false);
   const [cartaoTap, setCartaoTap] = useState<"debito" | "credito">("credito");
   const [parcelas, setParcelas] = useState(1);
   const [cobranca, setCobranca] = useState<{ id: string; link_url: string } | null>(null);
@@ -72,7 +68,13 @@ export function Pagamento({
   }, [metodo, codigoPix]);
 
   const troco = metodo === "dinheiro" && recebido > valor ? recebido - valor : 0;
-  const valido = valor > 0 && (metodo !== "dinheiro" || !recebidoTxt || recebido >= valor) && (metodo !== "pix" || !!pix) && (metodo !== "tap" && metodo !== "link" ? true : valor >= 1);
+  const cobraNoApp = metodo === "cartao" && !!infinitepay && !cartaoManual;
+  const valido =
+    valor > 0 &&
+    (metodo !== "dinheiro" || !recebidoTxt || recebido >= valor) &&
+    (metodo !== "pix" || !!pix) &&
+    (metodo !== "link" || valor >= 1) &&
+    (metodo !== "cartao" || (cartaoManual ? confirmoAprovado : !!infinitepay && valor >= 1));
 
   // link InfinitePay: acompanha até o servidor confirmar (aviso da InfinitePay conferido na API deles)
   useEffect(() => {
@@ -113,7 +115,7 @@ export function Pagamento({
     setErro(null);
     setSalvando(true);
     try {
-      if (metodo === "tap") {
+      if (cobraNoApp) {
         const c = await criarCobranca("tap");
         const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
         try {
@@ -128,7 +130,12 @@ export function Pagamento({
         setCobranca({ id: c.id, link_url: c.link_url! });
         return;
       }
-      await onConfirmar({ metodo, valor, ...(metodo === "dinheiro" && recebido > valor ? { recebido } : {}) });
+      if (metodo === "cartao") {
+        // cartão já aprovado em outra maquininha: só anota
+        await onConfirmar({ metodo: cartaoTap, valor });
+        return;
+      }
+      await onConfirmar({ metodo: metodo === "pix" ? "pix" : "dinheiro", valor, ...(metodo === "dinheiro" && recebido > valor ? { recebido } : {}) });
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Erro ao registrar");
     } finally {
@@ -147,27 +154,18 @@ export function Pagamento({
           <button onClick={fechar} className="ml-auto p-2" aria-label="Fechar"><X className="h-5 w-5" /></button>
         </div>
 
-        {infinitepay && (
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            {[
-              { id: "tap" as const, nome: "Cartão no celular", icone: Smartphone },
-              { id: "link" as const, nome: "Link / QR InfinitePay", icone: Link2 },
-            ].map((m) => (
-              <button
-                key={m.id}
-                onClick={() => { setMetodo(m.id); setCobranca(null); }}
-                className={`flex items-center justify-center gap-2 rounded-xl border px-2 py-3 text-xs font-bold ${metodo === m.id ? "border-carvao bg-carvao text-papel" : "border-pedra bg-white"}`}
-              >
-                <m.icone className="h-5 w-5 shrink-0" /> {m.nome}
-              </button>
-            ))}
-          </div>
-        )}
-        <div className="mt-2 grid grid-cols-4 gap-2">
-          {METODOS.map((m) => (
+        <div className={`mt-4 grid gap-2 ${infinitepay ? "grid-cols-4" : "grid-cols-3"}`} role="tablist">
+          {[
+            { id: "cartao" as const, nome: "Cartão", icone: CreditCard },
+            { id: "pix" as const, nome: "Pix", icone: QrCode },
+            ...(infinitepay ? [{ id: "link" as const, nome: "Link / QR", icone: Link2 }] : []),
+            { id: "dinheiro" as const, nome: "Dinheiro", icone: Banknote },
+          ].map((m) => (
             <button
               key={m.id}
-              onClick={() => setMetodo(m.id)}
+              role="tab"
+              aria-selected={metodo === m.id}
+              onClick={() => { setMetodo(m.id); setCobranca(null); setCartaoManual(false); setConfirmoAprovado(false); }}
               className={`flex flex-col items-center gap-1 rounded-xl border py-3 text-xs font-bold ${metodo === m.id ? "border-carvao bg-carvao text-papel" : "border-pedra bg-white"}`}
             >
               <m.icone className="h-5 w-5" /> {m.nome}
@@ -194,7 +192,7 @@ export function Pagamento({
               >
                 <Copy className="h-3.5 w-3.5" /> {copiado ? "Copiado!" : "Copiar Pix copia e cola"}
               </button>
-              <p className="mt-2 text-xs text-grafite">Confira o valor no app do banco do estabelecimento antes de confirmar.</p>
+              <p className="mt-2 text-xs font-semibold text-estado-laranja">Só confirme depois de ver o Pix no app do banco do estabelecimento.</p>
             </div>
           ) : (
             <p className="mt-4 rounded-xl bg-estado-laranja/15 p-3 text-sm font-semibold text-estado-laranja">
@@ -202,23 +200,56 @@ export function Pagamento({
             </p>
           ))}
 
-        {metodo === "tap" && (
+        {metodo === "cartao" && (
           <div className="mt-4 space-y-3 rounded-2xl bg-papel p-4">
-            <div className="grid grid-cols-2 gap-2">
-              {(["debito", "credito"] as const).map((c) => (
-                <button key={c} onClick={() => setCartaoTap(c)} className={`rounded-xl py-2.5 text-sm font-bold ${cartaoTap === c ? "bg-carvao text-papel" : "bg-white"}`}>
-                  {c === "debito" ? "Débito" : "Crédito"}
-                </button>
-              ))}
-            </div>
-            {cartaoTap === "credito" && (
-              <select value={parcelas} onChange={(e) => setParcelas(Number(e.target.value))} className="campo" aria-label="Parcelas">
-                {Array.from({ length: 12 }, (_, i) => i + 1).filter((n) => valor / n >= 1).map((n) => (
-                  <option key={n} value={n}>{n === 1 ? "À vista" : `${n}x de ${preco(valor / n)}`}</option>
-                ))}
-              </select>
+            {!cartaoManual && infinitepay && (
+              <>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["debito", "credito"] as const).map((c) => (
+                    <button key={c} onClick={() => setCartaoTap(c)} className={`rounded-xl py-2.5 text-sm font-bold ${cartaoTap === c ? "bg-carvao text-papel" : "bg-white"}`}>
+                      {c === "debito" ? "Débito" : "Crédito"}
+                    </button>
+                  ))}
+                </div>
+                {cartaoTap === "credito" && (
+                  <select value={parcelas} onChange={(e) => setParcelas(Number(e.target.value))} className="campo" aria-label="Parcelas">
+                    {Array.from({ length: 12 }, (_, i) => i + 1).filter((n) => valor / n >= 1).map((n) => (
+                      <option key={n} value={n}>{n === 1 ? "À vista" : `${n}x de ${preco(valor / n)}`}</option>
+                    ))}
+                  </select>
+                )}
+                <ol className="list-decimal space-y-0.5 pl-5 text-xs text-grafite">
+                  <li>Toque em <strong>Cobrar</strong>: o app InfinitePay abre neste celular já com o valor.</li>
+                  <li>O cliente encosta o cartão atrás do celular.</li>
+                  <li>Aprovou? O app volta para cá e a conta é paga.</li>
+                </ol>
+                <p className="text-xs text-grafite">Precisa do app InfinitePay instalado, logado na sua conta e com o NFC ligado.</p>
+              </>
             )}
-            <p className="text-xs text-grafite">Abre o app InfinitePay neste celular com o valor. O cliente encosta o cartão, e o app volta para cá com a confirmação. Precisa do app InfinitePay instalado e com NFC ligado.</p>
+            {!cartaoManual && !infinitepay && (
+              <p className="text-sm font-semibold text-estado-laranja">
+                Para cobrar débito e crédito pelo celular, cadastre a sua InfiniteTag em <strong>Estabelecimento → Pagamentos</strong>.
+              </p>
+            )}
+            {cartaoManual && (
+              <>
+                <p className="text-sm font-semibold">Anotar um cartão que JÁ foi aprovado em outra maquininha</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["debito", "credito"] as const).map((c) => (
+                    <button key={c} onClick={() => setCartaoTap(c)} className={`rounded-xl py-2.5 text-sm font-bold ${cartaoTap === c ? "bg-carvao text-papel" : "bg-white"}`}>
+                      {c === "debito" ? "Débito" : "Crédito"}
+                    </button>
+                  ))}
+                </div>
+                <label className="flex items-start gap-2 text-sm">
+                  <input type="checkbox" checked={confirmoAprovado} onChange={(e) => setConfirmoAprovado(e.target.checked)} className="mt-1 h-5 w-5" />
+                  <span>Confirmo que o cartão de {preco(valor)} foi <strong>aprovado</strong> na maquininha. Isto não cobra nada, só anota.</span>
+                </label>
+              </>
+            )}
+            <button onClick={() => { setCartaoManual(!cartaoManual); setConfirmoAprovado(false); }} className="text-xs font-semibold text-grafite underline">
+              {cartaoManual ? "Voltar para cobrar pelo celular" : "Já passei o cartão em outra maquininha"}
+            </button>
           </div>
         )}
 
@@ -247,12 +278,6 @@ export function Pagamento({
           </div>
         )}
 
-        {(metodo === "debito" || metodo === "credito") && (
-          <p className="mt-4 rounded-xl bg-papel p-3 text-sm text-grafite">
-            Cobre o cartão pelo app de pagamento do estabelecimento (aproximação no celular ou link) e confirme aqui quando aprovar.
-          </p>
-        )}
-
         {metodo === "dinheiro" && (
           <div className="mt-4">
             <label className="rotulo" htmlFor="recebido">Valor entregue pelo cliente (opcional, para troco)</label>
@@ -264,12 +289,16 @@ export function Pagamento({
         {erro && <p role="alert" className="mt-3 text-sm font-semibold text-estado-vermelho">{erro}</p>}
         {!(metodo === "link" && cobranca) && (
           <button onClick={confirmar} disabled={!valido || salvando} className="btn-escuro mt-5 w-full py-3.5 text-base">
-            {salvando ? <Loader2 className="h-5 w-5 animate-spin" /> : metodo === "tap" ? <Smartphone className="h-5 w-5" /> : metodo === "link" ? <QrCode className="h-5 w-5" /> : <Check className="h-5 w-5" />}
-            {metodo === "tap"
-              ? `Cobrar ${preco(valor)} no InfinitePay`
+            {salvando ? <Loader2 className="h-5 w-5 animate-spin" /> : cobraNoApp ? <Smartphone className="h-5 w-5" /> : metodo === "link" ? <QrCode className="h-5 w-5" /> : <Check className="h-5 w-5" />}
+            {metodo === "cartao"
+              ? cartaoManual
+                ? `Anotar cartão de ${preco(valor)}`
+                : `Cobrar ${preco(valor)} no ${cartaoTap === "debito" ? "débito" : "crédito"}`
               : metodo === "link"
                 ? `Gerar QR de ${preco(valor)}`
-                : `Recebi ${preco(valor)} no ${METODOS.find((m) => m.id === metodo)!.nome}`}
+                : metodo === "pix"
+                  ? `Já vi no banco: confirmar ${preco(valor)}`
+                  : `Recebi ${preco(valor)} em dinheiro`}
           </button>
         )}
       </div>
