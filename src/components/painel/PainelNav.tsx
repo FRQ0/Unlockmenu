@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { BellRing, ChartColumn, ChefHat, LogOut, Menu, QrCode, Settings, UtensilsCrossed, Users, X } from "lucide-react";
+import { BellRing, ChartColumn, ChefHat, LogOut, ScanLine, Ticket, Menu, QrCode, Settings, UtensilsCrossed, Users, X } from "lucide-react";
 import { LogoMarca } from "@/components/ui/Marca";
 import { PLANO_NOME, tenantHas, type TenantPlano } from "@/lib/plans";
 import type { Papel } from "@/lib/types";
@@ -23,6 +23,8 @@ export function PainelNav({ tenant, papel, nome, outros }: Props) {
   const itens = [
     { href: "/app/garcom", nome: "Salão", icone: BellRing, mostra: papel !== "cozinha" || !tenantHas(tenant, "pedidos") },
     { href: "/app/cozinha", nome: "Cozinha", icone: ChefHat, mostra: tenantHas(tenant, "pedidos") && papel !== "garcom" },
+    { href: "/app/caixa", nome: "Caixa e fichas", icone: Ticket, mostra: tenantHas(tenant, "fichas") && papel !== "cozinha" },
+    { href: "/app/fichas", nome: "Validar fichas", icone: ScanLine, mostra: tenantHas(tenant, "fichas") },
     { href: "/app/dono", nome: "Painel do dono", icone: ChartColumn, mostra: gere && tenantHas(tenant, "painel_dono_basico") },
     { href: "/app/cardapio", nome: "Cardápio", icone: UtensilsCrossed, mostra: gere },
     { href: "/app/mesas", nome: "Mesas e QR", icone: QrCode, mostra: gere },

@@ -61,6 +61,9 @@ export const configTenant = z
     google_review_url: urlHttps.nullable(),
     modo_atendimento: z.enum(["chamar", "chamar_pedir"]),
     alerta_minutos: z.number().int().min(1).max(60),
+    pix_chave: z.string().trim().min(3).max(77).nullable(),
+    pix_nome: z.string().trim().min(1).max(25).nullable(),
+    pix_cidade: z.string().trim().min(1).max(15).nullable(),
   })
   .partial()
   .strict();
@@ -166,3 +169,19 @@ export const pedidoCriar = z
   })
   .strict();
 export const pedidoStatus = z.object({ status: z.enum(["preparando", "pronto", "entregue", "cancelado"]) }).strict();
+
+const pagamento = z
+  .object({
+    metodo: z.enum(["pix", "debito", "credito", "dinheiro"]),
+    valor: z.number().positive().max(99999.99).transform((n) => Math.round(n * 100) / 100),
+    recebido: z.number().positive().max(99999.99).optional(),
+  })
+  .strict();
+export const vendaFichas = z
+  .object({
+    itens: z.array(z.object({ product_id: uuid, quantidade: z.number().int().min(1).max(50) }).strict()).min(1).max(50),
+    pagamentos: z.array(pagamento).min(1).max(10),
+  })
+  .strict();
+export const pagamentoMesa = z.object({ pagamentos: z.array(pagamento).min(1).max(10) }).strict();
+export const usarFicha = z.object({ codigo: z.string().trim().min(4).max(20) }).strict();

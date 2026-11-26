@@ -16,9 +16,12 @@ type Config = {
   horarios: string | null;
   google_review_url: string | null;
   alerta_minutos: number;
+  pix_chave: string | null;
+  pix_nome: string | null;
+  pix_cidade: string | null;
 };
 
-export function AdminConfig({ inicial, slug, recursos }: { inicial: Config; slug: string; recursos: { cores: boolean; avaliacao: boolean; alerta: boolean } }) {
+export function AdminConfig({ inicial, slug, recursos }: { inicial: Config; slug: string; recursos: { pagamentos: boolean; cores: boolean; avaliacao: boolean; alerta: boolean } }) {
   const [f, setF] = useState(inicial);
   const [enviando, setEnviando] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
@@ -61,6 +64,7 @@ export function AdminConfig({ inicial, slug, recursos }: { inicial: Config; slug
         ...(recursos.cores ? { capa_url: f.capa_url, cor_primaria: f.cor_primaria, cor_secundaria: f.cor_secundaria } : {}),
         ...(recursos.avaliacao ? { google_review_url: vazio(f.google_review_url) } : {}),
         ...(recursos.alerta ? { alerta_minutos: f.alerta_minutos } : {}),
+        ...(recursos.pagamentos ? { pix_chave: vazio(f.pix_chave), pix_nome: vazio(f.pix_nome), pix_cidade: vazio(f.pix_cidade) } : {}),
       });
       setOk(true);
     } catch (e) {
@@ -176,6 +180,32 @@ export function AdminConfig({ inicial, slug, recursos }: { inicial: Config; slug
               <p className="rotulo">Modo de atendimento</p>
               <p className="text-sm text-grafite">O cliente chama o garçom pela mesa. No plano Completo, o garçom anota o pedido no celular dele e o pedido cai na tela da Cozinha (tablet ou celular) e/ou na impressora.</p>
             </div>
+          </section>
+
+          <section className="card space-y-4 p-5">
+            <h2 className="font-bold">Pagamentos (Pix)</h2>
+            {recursos.pagamentos ? (
+              <>
+                <p className="text-sm text-grafite">Com a chave cadastrada, o garçom e o caixa mostram um QR do Pix já com o valor da conta. O dinheiro cai direto na conta do estabelecimento, sem taxa.</p>
+                <div>
+                  <label className="rotulo" htmlFor="pixc">Chave Pix (CNPJ, CPF, celular, e-mail ou aleatória)</label>
+                  <input id="pixc" maxLength={77} {...txt("pix_chave")} className="campo" placeholder="Ex.: +5534999999999" />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="rotulo" htmlFor="pixn">Nome do recebedor (até 25 letras)</label>
+                    <input id="pixn" maxLength={25} {...txt("pix_nome")} className="campo" />
+                  </div>
+                  <div>
+                    <label className="rotulo" htmlFor="pixci">Cidade</label>
+                    <input id="pixci" maxLength={15} {...txt("pix_cidade")} className="campo" placeholder="Frutal" />
+                  </div>
+                </div>
+                <p className="text-xs text-grafite">Celular no formato +55DDD número. Faça um Pix de teste de R$ 0,01 antes de usar com clientes.</p>
+              </>
+            ) : (
+              bloqueado("Pagamentos pelo sistema no plano Completo.")
+            )}
           </section>
 
           {erro && <p role="alert" className="text-sm font-semibold text-estado-vermelho">{erro}</p>}

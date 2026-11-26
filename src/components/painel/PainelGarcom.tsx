@@ -24,6 +24,8 @@ type Props = {
   vapid: string;
   cardapio: { categorias: CategoriaComanda[]; produtos: ProdutoComanda[] } | null;
   eu: { id: string; nome: string; papel: string };
+  pix?: { chave: string; nome: string; cidade: string } | null;
+  comPagamento?: boolean;
 };
 
 type PedidoPronto = { id: string; table_id: string; mesa: string; status: string; criado_em: string; itens: { nome: string; quantidade: number }[] };
@@ -34,7 +36,7 @@ function b64ToUint8(b64: string) {
   return Uint8Array.from(raw, (c) => c.charCodeAt(0));
 }
 
-export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, gerente, podeAtender, meusSetores, vapid, cardapio, eu }: Props) {
+export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, gerente, podeAtender, meusSetores, vapid, cardapio, eu, pix = null, comPagamento = false }: Props) {
   const [salao, setSalao] = useState<Salao>(inicial);
   const [agora, setAgora] = useState(() => Date.now());
   const [online, setOnline] = useState(true);
@@ -457,6 +459,8 @@ export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, geren
       {conta && (
         <ContaMesa
           mesa={conta}
+          pix={pix}
+          comPagamento={comPagamento}
           onFechar={() => setConta(null)}
           onNovoPedido={() => { setComanda(conta); setConta(null); }}
           onFechada={() => { setConta(null); recarregar(); }}

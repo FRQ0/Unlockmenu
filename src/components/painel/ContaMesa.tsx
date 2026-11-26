@@ -1,22 +1,53 @@
 "use client";
 // Conta da mesa: tudo que foi pedido desde que a mesa abriu, com total; e o botão de fechar.
 import { useEffect, useState } from "react";
-import { Loader2, Plus, Receipt, X } from "lucide-react";
+import { Loader2, Plus, Receipt, Wallet, X } from "lucide-react";
+import { Pagamento, type PixConfig } from "./Pagamento";
 import { preco } from "@/lib/format";
 import { api } from "./api";
 
+type Pag = { id: string; metodo: string; valor: number; recebido: number | null };
+type Conta = { pedidos: Pedido[]; total: number; pagamentos: Pag[]; pago: number; falta: number };
+const NOME_METODO: Record<string, string> = { pix: "Pix", debito: "Débito", credito: "Crédito", dinheiro: "Dinheiro" };
 type Pedido = { id: string; status: string; total: number; criado_em: string; itens: { nome: string; quantidade: number; preco: number; observacao: string | null }[] };
 const STATUS: Record<string, string> = { novo: "Na fila", preparando: "Preparando", pronto: "Pronto", entregue: "Entregue" };
 
-export function ContaMesa({ mesa, onFechar, onNovoPedido, onFechada }: { mesa: { id: string; nome: string }; onFechar: () => void; onNovoPedido: () => void; onFechada: () => void }) {
-  const [dados, setDados] = useState<{ pedidos: Pedido[]; total: number } | null>(null);
+export function ContaMesa({
+  mesa,
+  onFechar,
+  onNovoPedido,
+  onFechada,
+  pix,
+  comPagamento,
+}: {
+  mesa: { id: string; nome: string };
+  onFechar: () => void;
+  onNovoPedido: () => void;
+  onFechada: () => void;
+  pix: PixConfig;
+  comPagamento: boolean;
+}) {
+  const [dados, setDados] = useState<Conta | null>(null);
+  const [pagando, setPagando] = useState(false);
   const [fechando, setFechando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [fechadaCom, setFechadaCom] = useState<number | null>(null);
 
+  const carregar = () => api<Conta>(`/api/app/mesas/${mesa.id}/conta`, "GET").then(setDados).catch((e) => setErro(e.message));
   useEffect(() => {
-    api<{ pedidos: Pedido[]; total: number }>(`/api/app/mesas/${mesa.id}/conta`, "GET").then(setDados).catch((e) => setErro(e.message));
+    carregar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mesa.id]);
+
+  async function estornar(id: string) {
+    if (!confirm("Desfazer este pagamento?")) return;
+    try {
+      await api(`/api/app/pagamentos/${id}`, "DELETE");
+      carregar();
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Erro");
+    }
+  }
 
   async function fechar() {
     if (!confirm(`Fechar a conta da ${mesa.nome}${dados ? ` no valor de ${preco(dados.total)}` : ""}?`)) return;
@@ -71,11 +102,43 @@ export function ContaMesa({ mesa, onFechar, onNovoPedido, onFechada }: { mesa: {
             </div>
             <footer className="space-y-2 border-t border-pedra p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
               <p className="flex items-baseline justify-between"><span className="font-semibold text-grafite">Total</span><span className="text-3xl font-extrabold tabular-nums">{preco(dados.total)}</span></p>
+              {comPagamento && dados.pedidos.length > 0 && (
+                <div className="rounded-xl bg-papel p-3 text-sm">
+                  {dados.pagamentos.map((p) => (
+                    <p key={p.id} className="flex items-center gap-2">
+                      <span className="flex-1">{NOME_METODO[p.metodo]}{p.recebido ? ` (troco ${preco(p.recebido - p.valor)})` : ""}</span>
+                      <span className="tabular-nums">{preco(p.valor)}</span>
+                      <button onClick={() => estornar(p.id)} className="text-grafite" aria-label="Desfazer pagamento"><X className="h-3.5 w-3.5" /></button>
+                    </p>
+                  ))}
+                  <p className={`mt-1 flex justify-between font-extrabold ${dados.falta > 0 ? "text-estado-vermelho" : "text-estado-verde"}`}>
+                    <span>{dados.falta > 0 ? "Falta receber" : "Conta paga"}</span><span className="tabular-nums">{preco(dados.falta)}</span>
+                  </p>
+                </div>
+              )}
               {erro && <p role="alert" className="text-sm font-semibold text-estado-vermelho">{erro}</p>}
               <div className="grid grid-cols-2 gap-2">
                 <button onClick={onNovoPedido} className="btn-secundario py-3"><Plus className="h-4 w-4" /> Novo pedido</button>
-                <button onClick={fechar} disabled={fechando || !dados.pedidos.length} className="btn-escuro py-3">{fechando && <Loader2 className="h-4 w-4 animate-spin" />} Fechar conta</button>
+                {comPagamento && dados.falta > 0 ? (
+                  <button onClick={() => setPagando(true)} className="btn-escuro py-3"><Wallet className="h-4 w-4" /> Receber</button>
+                ) : (
+                  <button onClick={fechar} disabled={fechando || !dados.pedidos.length} className="btn-escuro py-3">{fechando && <Loader2 className="h-4 w-4 animate-spin" />} Fechar conta</button>
+                )}
               </div>
+              {pagando && (
+                <Pagamento
+                  titulo={`Conta · ${mesa.nome}`}
+                  falta={dados.falta}
+                  pix={pix}
+                  txid={mesa.nome.replace(/\D/g, "") ? `MESA${mesa.nome.replace(/\D/g, "")}` : "MESA"}
+                  onFechar={() => setPagando(false)}
+                  onConfirmar={async (p) => {
+                    await api(`/api/app/mesas/${mesa.id}/pagamentos`, "POST", { pagamentos: [p] });
+                    setPagando(false);
+                    await carregar();
+                  }}
+                />
+              )}
             </footer>
           </>
         )}

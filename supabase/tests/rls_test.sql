@@ -233,10 +233,55 @@ set role authenticated;
 select public.t_as('00000000-0000-0000-0000-00000000000d');
 select public.t_expect_error($q$select public.criar_pedido('dddddddd-3333-0000-0000-000000000001', (select jsonb_build_array(jsonb_build_object('product_id', id, 'quantidade', 1)) from public.products where nome = 'Pizza'))$q$, 'recurso_indisponivel_no_plano: pedidos', 'Profissional não usa comanda');
 
--- fechar a conta
+-- fechar a conta (precisa estar paga)
 select public.t_as('00000000-0000-0000-0000-0000000000a2');
+select public.t_expect_error($q$select public.fechar_conta('aaaaaaaa-3333-0000-0000-000000000002')$q$, 'conta_nao_paga', 'não fecha conta sem pagamento');
+select public.t_expect_error($q$select public.registrar_pagamento_mesa('aaaaaaaa-3333-0000-0000-000000000002', '[{"metodo":"pix","valor":50}]')$q$, 'pagamento_maior_que_total', 'Pix maior que a conta recusado');
+select public.t_expect_eq($q$select (public.registrar_pagamento_mesa('aaaaaaaa-3333-0000-0000-000000000002', '[{"metodo":"pix","valor":20}]') * 100)::bigint$q$, 2200, 'dividir conta: falta 22,00');
+select public.t_expect_eq($q$select (public.registrar_pagamento_mesa('aaaaaaaa-3333-0000-0000-000000000002', '[{"metodo":"dinheiro","valor":22,"recebido":50}]') * 100)::bigint$q$, 0, 'dinheiro com troco quita a conta');
 select public.t_expect_eq($q$select (public.fechar_conta('aaaaaaaa-3333-0000-0000-000000000002') * 100)::bigint$q$, 4200, 'fechar conta devolve o total');
 select public.t_expect_eq($q$select count(*) from public.sessions where table_id = 'aaaaaaaa-3333-0000-0000-000000000002' and encerrada_em is null$q$, 0, 'mesa liberada');
 select public.t_expect_eq($q$select count(*) from public.orders where pago_em is not null and status = 'entregue'$q$, 1, 'pedido marcado como pago');
 select public.t_expect_error($q$update public.orders set status = 'cancelado'$q$, 'transicao_invalida', 'pedido pago não muda mais');
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- 7. Fichas e pagamentos
+-- ---------------------------------------------------------------------------
+reset role;
+update public.products set disponivel = true where id = 'aaaaaaaa-2222-0000-0000-000000000001';
+set role authenticated;
+select public.t_as('00000000-0000-0000-0000-0000000000a2'); -- garçom A
+select public.t_expect_error($q$select public.vender_fichas('[{"product_id":"aaaaaaaa-2222-0000-0000-000000000002","quantidade":2}]', '[{"metodo":"pix","valor":10}]')$q$, 'pagamento_insuficiente', 'ficha não sai sem pagamento completo');
+select public.t_expect_error($q$select public.vender_fichas('[{"product_id":"aaaaaaaa-2222-0000-0000-000000000002","quantidade":1}]', '[{"metodo":"boleto","valor":14}]')$q$, 'pagamento_invalido', 'forma de pagamento inválida');
+select public.t_expect_error($q$select public.vender_fichas('[{"product_id":"aaaaaaaa-2222-0000-0000-000000000002","quantidade":1},{"product_id":"bbbbbbbb-2222-0000-0000-000000000001","quantidade":1}]', '[{"metodo":"pix","valor":20}]')$q$, 'item_invalido', 'não mistura produtos de outro estabelecimento');
+select public.t_expect_eq($q$select count(*) from public.vender_fichas('[{"product_id":"aaaaaaaa-2222-0000-0000-000000000002","quantidade":3}]', '[{"metodo":"credito","valor":42}]')$q$, 3, 'vende 3 fichas (uma por unidade)');
+select public.t_expect_eq($q$select (sum(preco) * 100)::bigint from public.fichas$q$, 4200, 'preço das fichas vem do banco');
+select public.t_expect_error($q$insert into public.fichas (tenant_id, venda_id, codigo, nome, preco) select tenant_id, venda_id, 'ABCDEF', 'X', 0 from public.fichas limit 1$q$, 'permission denied', 'não cria ficha direto (falsificação)');
+select public.t_expect_error($q$update public.fichas set status = 'valida'$q$, 'permission denied', 'não "desusa" ficha');
+
+-- cozinha valida
+select public.t_as('00000000-0000-0000-0000-0000000000a3');
+select public.t_expect_eq($q$select count(*) from public.usar_ficha('aaaaaaaa-0000-0000-0000-000000000000', (select codigo from public.fichas order by codigo limit 1)) where resultado = 'ok'$q$, 1, 'cozinha valida a ficha');
+select public.t_expect_eq($q$select count(*) from public.usar_ficha('aaaaaaaa-0000-0000-0000-000000000000', (select lower(codigo) from public.fichas order by codigo limit 1)) where resultado = 'ja_usada'$q$, 1, 'ficha não vale duas vezes');
+select public.t_expect_eq($q$select count(*) from public.usar_ficha('aaaaaaaa-0000-0000-0000-000000000000', 'ZZZZZZ') where resultado = 'nao_encontrada'$q$, 1, 'código inexistente');
+select public.t_expect_error($q$select public.vender_fichas('[{"product_id":"aaaaaaaa-2222-0000-0000-000000000002","quantidade":1}]', '[{"metodo":"pix","valor":14}]')$q$, 'permissão', 'cozinha não vende ficha');
+select public.t_expect_eq('select count(*) from public.pagamentos', 0, 'cozinha não vê pagamentos');
+
+-- outro estabelecimento não valida
+select public.t_as('00000000-0000-0000-0000-00000000000b');
+select public.t_expect_error($q$select public.usar_ficha('aaaaaaaa-0000-0000-0000-000000000000', 'ZZZZZZ')$q$, 'permissão', 'outro estabelecimento não valida ficha');
+select public.t_expect_eq('select count(*) from public.fichas', 0, 'outro estabelecimento não vê fichas');
+
+-- cancelar venda: garçom não, dono sim
+select public.t_as('00000000-0000-0000-0000-0000000000a2');
+select public.t_expect_error($q$select public.cancelar_venda((select id from public.vendas limit 1))$q$, 'permissão', 'garçom não cancela venda');
+select public.t_as('00000000-0000-0000-0000-00000000000a');
+select public.t_ok($q$select public.cancelar_venda((select id from public.vendas limit 1))$q$, 'dono cancela venda');
+select public.t_expect_eq($q$select count(*) from public.fichas where status = 'cancelada'$q$, 2, 'fichas não usadas ficam canceladas');
+select public.t_expect_eq($q$select count(*) from public.fichas where status = 'usada'$q$, 1, 'ficha já usada continua usada');
+
+-- plano sem o recurso
+select public.t_as('00000000-0000-0000-0000-00000000000d');
+select public.t_expect_error($q$select public.vender_fichas((select jsonb_build_array(jsonb_build_object('product_id', id, 'quantidade', 1)) from public.products where nome = 'Pizza'), '[{"metodo":"pix","valor":59}]')$q$, 'recurso_indisponivel_no_plano: fichas', 'Profissional não usa fichas');
 reset role;

@@ -56,11 +56,15 @@ export async function contaDaMesa(supabase: SupabaseClient, tenantId: string, ta
   const { data: sessao } = await supabase
     .from("sessions").select("id,iniciada_em").eq("tenant_id", tenantId).eq("table_id", tableId).is("encerrada_em", null)
     .order("iniciada_em", { ascending: false }).limit(1).maybeSingle();
-  if (!sessao) return { pedidos: [] as Pedido[], total: 0 };
+  if (!sessao) return { pedidos: [] as Pedido[], total: 0, pagamentos: [] as { id: string; metodo: string; valor: number; recebido: number | null }[], pago: 0, falta: 0 };
   const [{ data }, nomes] = await Promise.all([
     supabase.from("orders").select(COLS).eq("tenant_id", tenantId).eq("session_id", sessao.id).neq("status", "cancelado").order("criado_em"),
     nomesEquipe(supabase, tenantId),
   ]);
   const pedidos = ((data ?? []) as unknown as Linha[]).map((l) => montar(l, nomes));
-  return { pedidos, total: Math.round(pedidos.reduce((s, p) => s + p.total, 0) * 100) / 100 };
+  const { data: pags } = await supabase.from("pagamentos").select("id,metodo,valor,recebido,criado_em").eq("session_id", sessao.id).eq("status", "confirmado").order("criado_em");
+  const pagamentos = (pags ?? []).map((p) => ({ id: p.id as string, metodo: p.metodo as string, valor: Number(p.valor), recebido: p.recebido === null ? null : Number(p.recebido) }));
+  const total = Math.round(pedidos.reduce((s, p) => s + p.total, 0) * 100) / 100;
+  const pago = Math.round(pagamentos.reduce((s, p) => s + p.valor, 0) * 100) / 100;
+  return { pedidos, total, pagamentos, pago, falta: Math.max(0, Math.round((total - pago) * 100) / 100) };
 }

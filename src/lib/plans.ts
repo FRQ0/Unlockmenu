@@ -30,6 +30,8 @@ export const FEATURES = {
   painel_dono_completo: ["completo"],
   site_institucional: ["completo"],
   dominio_proprio: ["completo"],
+  fichas: ["completo"],
+  pagamentos: ["completo"],
 } as const satisfies Record<string, readonly Plano[]>;
 export type Feature = keyof typeof FEATURES;
 

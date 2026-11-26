@@ -39,6 +39,8 @@ export default async function GarcomPage() {
       vapid={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ""}
       cardapio={cardapio}
       eu={{ id: user.id, nome: membership.nome, papel: membership.papel }}
+      pix={tenant.pix_chave ? { chave: tenant.pix_chave, nome: tenant.pix_nome ?? tenant.nome, cidade: tenant.pix_cidade ?? "BRASIL" } : null}
+      comPagamento={tenantHas(tenant, "pagamentos")}
     />
   );
 }

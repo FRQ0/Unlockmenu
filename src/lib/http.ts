@@ -24,6 +24,13 @@ export function fromDbError(err: { message?: string; code?: string } | null | un
   if (msg.includes("transicao_invalida")) return new HttpError(409, "Já foi atualizado por outra pessoa. Atualize a tela.");
   if (msg.includes("item_invalido")) return new HttpError(400, "Algum item está esgotado ou não existe mais.");
   if (msg.includes("pedido_invalido")) return new HttpError(400, "Pedido inválido.");
+  if (msg.includes("pagamento_insuficiente")) return new HttpError(400, "O valor pago não cobre o total.");
+  if (msg.includes("pagamento_maior_que_total")) return new HttpError(400, "O valor passa do total. Para troco, use dinheiro.");
+  if (msg.includes("pagamento_invalido")) return new HttpError(400, "Pagamento inválido.");
+  if (msg.includes("conta_nao_paga")) return new HttpError(409, "Falta receber o pagamento antes de fechar a conta.");
+  if (msg.includes("mesa_sem_conta")) return new HttpError(404, "Esta mesa não tem conta aberta.");
+  if (msg.includes("venda_nao_encontrada")) return new HttpError(404, "Venda não encontrada ou já cancelada.");
+  if (msg.includes("pagamento_nao_encontrado")) return new HttpError(404, "Pagamento não encontrado.");
   if (msg.includes("pedido_ja_fechado")) return new HttpError(409, "Esta conta já foi fechada.");
   if (err?.code === "42501" || msg.includes("row-level security") || msg.includes("permission denied"))
     return new HttpError(403, "Sem permissão.");

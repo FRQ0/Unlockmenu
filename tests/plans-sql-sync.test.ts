@@ -1,10 +1,11 @@
 // O plano é conferido em dois lugares (servidor Node e Postgres). Este teste garante que batem.
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { FEATURES, LIMITES, PLANOS } from "@/lib/plans";
 
-const sql = readFileSync(path.join(__dirname, "../supabase/migrations/0001_schema.sql"), "utf8");
+const dir = path.join(__dirname, "../supabase/migrations");
+const sql = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort().map((f) => readFileSync(path.join(dir, f), "utf8")).join("\n");
 
 describe("plans.ts × plan_features (SQL)", () => {
   const pares = new Set([...sql.matchAll(/\('(essencial|profissional|completo)', '([a-z_]+)'\)/g)].map((m) => `${m[1]}:${m[2]}`));

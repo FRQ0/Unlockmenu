@@ -21,9 +21,12 @@ export default async function ConfigPage() {
         horarios: tenant.horarios,
         google_review_url: tenant.google_review_url,
         alerta_minutos: tenant.alerta_minutos,
+        pix_chave: tenant.pix_chave,
+        pix_nome: tenant.pix_nome,
+        pix_cidade: tenant.pix_cidade,
       }}
       slug={tenant.slug}
-      recursos={{ cores: tenantHas(tenant, "cores"), avaliacao: tenantHas(tenant, "avaliacao_google"), alerta: tenantHas(tenant, "alerta_gerente") }}
+      recursos={{ pagamentos: tenantHas(tenant, "pagamentos"), cores: tenantHas(tenant, "cores"), avaliacao: tenantHas(tenant, "avaliacao_google"), alerta: tenantHas(tenant, "alerta_gerente") }}
     />
   );
 }
