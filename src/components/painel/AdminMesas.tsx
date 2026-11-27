@@ -50,7 +50,7 @@ export function AdminMesas({ iniciais, max, setores }: { iniciais: Mesa[]; max: 
 
   const apagar = (m: Mesa) =>
     tentar(async () => {
-      if (!confirm(`Apagar ${m.nome}? O QR impresso dela deixa de funcionar.`)) return;
+      if (!confirm(`Apagar ${m.nome}? O QR impresso dela deixa de funcionar. Se ela tiver vendas, fica arquivada para não sumir do relatório.`)) return;
       await api(`/api/app/mesas/${m.id}`, "DELETE");
       setMesas((ms) => ms.filter((x) => x.id !== m.id));
     });

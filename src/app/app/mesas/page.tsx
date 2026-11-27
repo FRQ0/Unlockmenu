@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Mesas e QR" };
 
 export default async function MesasPage() {
   const { supabase, tenant } = await staffPage(PODE_GERIR);
-  const { data } = await supabase.from("tables").select("id,nome,token_publico,area,ordem,ativa").eq("tenant_id", tenant.id).order("ordem").order("nome");
+  const { data } = await supabase.from("tables").select("id,nome,token_publico,area,ordem,ativa").eq("tenant_id", tenant.id).eq("arquivada", false).order("ordem").order("nome");
   return (
     <AdminMesas
       iniciais={(data ?? []).map((m) => ({ id: m.id, nome: m.nome, area: m.area, ativa: m.ativa, url: urlMesa(tenant, m.token_publico) }))}

@@ -9,7 +9,7 @@ export const POST = staffRoute(PODE_GERIR, async ({ supabase, tenant }, req) => 
   const body = mesaCriar.parse(await readJson(req));
   const qtd = body.quantidade ?? 1;
 
-  const { count } = await supabase.from("tables").select("id", { count: "exact", head: true }).eq("tenant_id", tenant.id);
+  const { count } = await supabase.from("tables").select("id", { count: "exact", head: true }).eq("tenant_id", tenant.id).eq("arquivada", false);
   const atual = count ?? 0;
   const max = LIMITES[tenant.plano].maxMesas;
   if (max !== null && atual + qtd > max) throw new HttpError(403, `Seu plano permite até ${max} mesas.`);

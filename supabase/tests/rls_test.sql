@@ -317,3 +317,16 @@ select public.t_as('00000000-0000-0000-0000-0000000000a2');
 select public.t_expect_eq($q$select count(*) from public.vender_fichas('[{"product_id":"aaaaaaaa-2222-0000-0000-000000000002","quantidade":1}]', jsonb_build_array(jsonb_build_object('metodo','credito','valor',14,'cobranca_id',(select id from public.cobrancas where origem = 'fichas'))))$q$, 1, 'ficha sai com cobrança paga');
 select public.t_expect_error($q$select public.vender_fichas('[{"product_id":"aaaaaaaa-2222-0000-0000-000000000002","quantidade":1}]', jsonb_build_array(jsonb_build_object('metodo','credito','valor',14,'cobranca_id',(select id from public.cobrancas where origem = 'fichas'))))$q$, 'cobranca_nao_paga', 'cobrança paga não serve duas vezes');
 reset role;
+
+-- ---------------------------------------------------------------------------
+-- 9. Remover mesa com histórico arquiva (não perde vendas)
+-- ---------------------------------------------------------------------------
+set role authenticated;
+select public.t_as('00000000-0000-0000-0000-00000000000a');
+select public.t_expect_eq($q$select count(*) from public.remover_mesa('aaaaaaaa-3333-0000-0000-000000000002') where remover_mesa = 'arquivada'$q$, 1, 'mesa com vendas é arquivada');
+select public.t_expect_eq($q$select count(*) from public.orders where table_id = 'aaaaaaaa-3333-0000-0000-000000000002'$q$, 1, 'vendas da mesa arquivada continuam');
+select public.t_ok($q$insert into public.tables (tenant_id, nome) values ('aaaaaaaa-0000-0000-0000-000000000000', 'Mesa nova')$q$, 'cria mesa nova');
+select public.t_expect_eq($q$select count(*) from public.remover_mesa((select id from public.tables where nome = 'Mesa nova')) where remover_mesa = 'apagada'$q$, 1, 'mesa sem histórico é apagada');
+select public.t_as('00000000-0000-0000-0000-0000000000a2');
+select public.t_expect_error($q$select public.remover_mesa('aaaaaaaa-3333-0000-0000-000000000001')$q$, 'permissão', 'garçom não remove mesa');
+reset role;

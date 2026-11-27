@@ -14,7 +14,7 @@ export const GET = staffRoute(PODE_GERIR, async ({ supabase, tenant }, req) => {
   const idsParam = sp.get("ids");
   const formato = sp.get("formato") === "a6" ? "a6" : "a4";
   const ids = idsParam ? idsParam.split(",").slice(0, 200).map((i) => uuid.parse(i)) : null;
-  let q = supabase.from("tables").select("nome,token_publico").eq("tenant_id", tenant.id).order("ordem").order("nome");
+  let q = supabase.from("tables").select("nome,token_publico").eq("tenant_id", tenant.id).eq("arquivada", false).eq("ativa", true).order("ordem").order("nome");
   if (ids) q = q.in("id", ids);
   const { data: mesas } = await q;
   if (!mesas?.length) throw new HttpError(404, "Nenhuma mesa.");

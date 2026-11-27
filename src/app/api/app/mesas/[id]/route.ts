@@ -15,8 +15,9 @@ export const PATCH = staffRoute<{ id: string }>(PODE_GERIR, async ({ supabase, t
   return json(data);
 });
 
-export const DELETE = staffRoute<{ id: string }>(PODE_GERIR, async ({ supabase, tenant }, _req, { id }) => {
-  const { error } = await supabase.from("tables").delete().eq("id", uuid.parse(id)).eq("tenant_id", tenant.id);
+// Mesa com vendas no histórico é arquivada (some do painel, as vendas continuam no relatório)
+export const DELETE = staffRoute<{ id: string }>(PODE_GERIR, async ({ supabase }, _req, { id }) => {
+  const { data, error } = await supabase.rpc("remover_mesa", { p_table: uuid.parse(id) });
   if (error) throw fromDbError(error);
-  return json({ ok: true });
+  return json({ resultado: data });
 });
