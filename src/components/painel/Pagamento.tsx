@@ -157,12 +157,11 @@ export function Pagamento({
           <button onClick={fechar} className="ml-auto p-2" aria-label="Fechar"><X className="h-5 w-5" /></button>
         </div>
 
-        <div className={`mt-4 grid gap-2 ${["", "grid-cols-1", "grid-cols-2", "grid-cols-3", "grid-cols-4"][2 + (infinitepay ? 1 : 0) + (permiteDinheiro ? 1 : 0)]}`} role="tablist">
+        {/* Só cartão (pelo app InfinitePay) e Pix. Dinheiro não é recebido pelo sistema. */}
+        <div className="mt-4 grid grid-cols-2 gap-2" role="tablist">
           {[
             { id: "cartao" as const, nome: "Cartão", icone: CreditCard },
             { id: "pix" as const, nome: "Pix", icone: QrCode },
-            ...(infinitepay ? [{ id: "link" as const, nome: "Link / QR", icone: Link2 }] : []),
-            ...(permiteDinheiro ? [{ id: "dinheiro" as const, nome: "Dinheiro", icone: Banknote }] : []),
           ].map((m) => (
             <button
               key={m.id}
