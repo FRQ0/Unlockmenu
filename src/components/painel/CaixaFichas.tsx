@@ -221,6 +221,7 @@ export function CaixaFichas({
           txid={`FICHA${Date.now().toString(36).toUpperCase()}`}
           onFechar={() => setPagando(false)}
           infinitepay={infinitepay ? { origem: "fichas" } : null}
+          permiteDinheiro={podeCancelar}
           onAntesDeSair={(cobranca) => {
             try {
               sessionStorage.setItem("caixa_pendente", JSON.stringify({ carrinho, pagos, cobranca }));

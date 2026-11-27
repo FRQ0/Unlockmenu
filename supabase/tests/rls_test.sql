@@ -238,7 +238,11 @@ select public.t_as('00000000-0000-0000-0000-0000000000a2');
 select public.t_expect_error($q$select public.fechar_conta('aaaaaaaa-3333-0000-0000-000000000002')$q$, 'conta_nao_paga', 'não fecha conta sem pagamento');
 select public.t_expect_error($q$select public.registrar_pagamento_mesa('aaaaaaaa-3333-0000-0000-000000000002', '[{"metodo":"pix","valor":50}]')$q$, 'pagamento_maior_que_total', 'Pix maior que a conta recusado');
 select public.t_expect_eq($q$select (public.registrar_pagamento_mesa('aaaaaaaa-3333-0000-0000-000000000002', '[{"metodo":"pix","valor":20}]') * 100)::bigint$q$, 2200, 'dividir conta: falta 22,00');
-select public.t_expect_eq($q$select (public.registrar_pagamento_mesa('aaaaaaaa-3333-0000-0000-000000000002', '[{"metodo":"dinheiro","valor":22,"recebido":50}]') * 100)::bigint$q$, 0, 'dinheiro com troco quita a conta');
+select public.t_expect_error($q$select public.registrar_pagamento_mesa('aaaaaaaa-3333-0000-0000-000000000002', '[{"metodo":"dinheiro","valor":22,"recebido":50}]')$q$, 'dinheiro_so_caixa', 'garçom não recebe dinheiro');
+select public.t_expect_error($q$select public.liberar_mesa('aaaaaaaa-3333-0000-0000-000000000002')$q$, 'mesa_com_conta_aberta', 'não libera mesa com conta aberta');
+select public.t_as('00000000-0000-0000-0000-00000000000a');
+select public.t_expect_eq($q$select (public.registrar_pagamento_mesa('aaaaaaaa-3333-0000-0000-000000000002', '[{"metodo":"dinheiro","valor":22,"recebido":50}]') * 100)::bigint$q$, 0, 'dono (caixa) recebe dinheiro com troco');
+select public.t_as('00000000-0000-0000-0000-0000000000a2');
 select public.t_expect_eq($q$select (public.fechar_conta('aaaaaaaa-3333-0000-0000-000000000002') * 100)::bigint$q$, 4200, 'fechar conta devolve o total');
 select public.t_expect_eq($q$select count(*) from public.sessions where table_id = 'aaaaaaaa-3333-0000-0000-000000000002' and encerrada_em is null$q$, 0, 'mesa liberada');
 select public.t_expect_eq($q$select count(*) from public.orders where pago_em is not null and status = 'entregue'$q$, 1, 'pedido marcado como pago');
@@ -329,4 +333,21 @@ select public.t_ok($q$insert into public.tables (tenant_id, nome) values ('aaaaa
 select public.t_expect_eq($q$select count(*) from public.remover_mesa((select id from public.tables where nome = 'Mesa nova')) where remover_mesa = 'apagada'$q$, 1, 'mesa sem histórico é apagada');
 select public.t_as('00000000-0000-0000-0000-0000000000a2');
 select public.t_expect_error($q$select public.remover_mesa('aaaaaaaa-3333-0000-0000-000000000001')$q$, 'permissão', 'garçom não remove mesa');
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- 10. Liberar mesa sem consumo
+-- ---------------------------------------------------------------------------
+reset role;
+insert into public.tables (id, tenant_id, nome, token_publico) values ('aaaaaaaa-3333-0000-0000-000000000009', 'aaaaaaaa-0000-0000-0000-000000000000', 'Mesa 09', 'token-mesa-a9');
+set role service_role;
+select public.criar_chamado('token-mesa-a9', 'garcom', 'ip9');
+reset role;
+set role authenticated;
+select public.t_as('00000000-0000-0000-0000-0000000000a2');
+select public.t_expect_eq($q$select count(*) from public.liberar_mesa('aaaaaaaa-3333-0000-0000-000000000009') where liberar_mesa = 'liberada'$q$, 1, 'garçom libera mesa sem consumo');
+select public.t_expect_eq($q$select count(*) from public.calls where table_id = 'aaaaaaaa-3333-0000-0000-000000000009' and status = 'cancelado'$q$, 1, 'chamado aberto é cancelado');
+select public.t_expect_eq($q$select count(*) from public.sessions where table_id = 'aaaaaaaa-3333-0000-0000-000000000009' and encerrada_em is null$q$, 0, 'mesa fica livre');
+select public.t_as('00000000-0000-0000-0000-0000000000a3');
+select public.t_expect_error($q$select public.liberar_mesa('aaaaaaaa-3333-0000-0000-000000000009')$q$, 'permissão', 'cozinha não libera mesa');
 reset role;

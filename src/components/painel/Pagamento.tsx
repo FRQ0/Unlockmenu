@@ -30,6 +30,7 @@ export function Pagamento({
   infinitepay = null,
   onPago,
   onAntesDeSair,
+  permiteDinheiro = true,
 }: {
   titulo: string;
   falta: number;
@@ -42,6 +43,8 @@ export function Pagamento({
   onPago?: () => void;
   /** antes de abrir o app InfinitePay (ex.: o caixa guarda o carrinho) */
   onAntesDeSair?: (cobrancaId: string) => void;
+  /** dinheiro só no caixa (dono/gerente) */
+  permiteDinheiro?: boolean;
 }) {
   const [metodo, setMetodo] = useState<Metodo>(infinitepay ? "cartao" : "pix");
   const [cartaoManual, setCartaoManual] = useState(false);
@@ -154,12 +157,12 @@ export function Pagamento({
           <button onClick={fechar} className="ml-auto p-2" aria-label="Fechar"><X className="h-5 w-5" /></button>
         </div>
 
-        <div className={`mt-4 grid gap-2 ${infinitepay ? "grid-cols-4" : "grid-cols-3"}`} role="tablist">
+        <div className={`mt-4 grid gap-2 ${["", "grid-cols-1", "grid-cols-2", "grid-cols-3", "grid-cols-4"][2 + (infinitepay ? 1 : 0) + (permiteDinheiro ? 1 : 0)]}`} role="tablist">
           {[
             { id: "cartao" as const, nome: "Cartão", icone: CreditCard },
             { id: "pix" as const, nome: "Pix", icone: QrCode },
             ...(infinitepay ? [{ id: "link" as const, nome: "Link / QR", icone: Link2 }] : []),
-            { id: "dinheiro" as const, nome: "Dinheiro", icone: Banknote },
+            ...(permiteDinheiro ? [{ id: "dinheiro" as const, nome: "Dinheiro", icone: Banknote }] : []),
           ].map((m) => (
             <button
               key={m.id}

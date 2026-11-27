@@ -20,6 +20,8 @@ export function ContaMesa({
   pix,
   comPagamento,
   infinitepay = false,
+  permiteDinheiro = true,
+  onLiberar,
 }: {
   mesa: { id: string; nome: string };
   onFechar: () => void;
@@ -28,6 +30,8 @@ export function ContaMesa({
   pix: PixConfig;
   comPagamento: boolean;
   infinitepay?: boolean;
+  permiteDinheiro?: boolean;
+  onLiberar?: () => Promise<void>;
 }) {
   const [dados, setDados] = useState<Conta | null>(null);
   const [pagando, setPagando] = useState(false);
@@ -123,6 +127,13 @@ export function ContaMesa({
                 <button onClick={onNovoPedido} className="btn-secundario py-3"><Plus className="h-4 w-4" /> Novo pedido</button>
                 {comPagamento && dados.falta > 0 ? (
                   <button onClick={() => setPagando(true)} className="btn-escuro py-3"><Wallet className="h-4 w-4" /> Receber</button>
+                ) : !dados.pedidos.length && onLiberar ? (
+                  <button
+                    onClick={async () => { if (confirm(`Liberar a ${mesa.nome}? O cliente foi embora sem consumir.`)) await onLiberar(); }}
+                    className="btn-escuro py-3"
+                  >
+                    Liberar mesa
+                  </button>
                 ) : (
                   <button onClick={fechar} disabled={fechando || !dados.pedidos.length} className="btn-escuro py-3">{fechando && <Loader2 className="h-4 w-4 animate-spin" />} Fechar conta</button>
                 )}
@@ -135,6 +146,7 @@ export function ContaMesa({
                   txid={mesa.nome.replace(/\D/g, "") ? `MESA${mesa.nome.replace(/\D/g, "")}` : "MESA"}
                   onFechar={() => setPagando(false)}
                   infinitepay={infinitepay ? { origem: "mesa", tableId: mesa.id } : null}
+                  permiteDinheiro={permiteDinheiro}
                   onPago={() => { setPagando(false); carregar(); }}
                   onConfirmar={async (p) => {
                     await api(`/api/app/mesas/${mesa.id}/pagamentos`, "POST", { pagamentos: [p] });

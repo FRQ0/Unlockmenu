@@ -230,11 +230,14 @@ export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, geren
 
   async function liberar(mesaId: string) {
     setOcupado(mesaId);
-    await fetch(`/api/app/mesas/${mesaId}/liberar`, { method: "POST" });
+    setAviso(null);
+    const r = await fetch(`/api/app/mesas/${mesaId}/liberar`, { method: "POST" });
+    if (!r.ok) setAviso(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "Não foi possível liberar a mesa.");
     await recarregar();
     setOcupado(null);
     setSelecionada(null);
   }
+
 
   const areas = useMemo(() => Array.from(new Set(salao.mesas.map((m) => m.area).filter((a): a is string => !!a))).sort(), [salao.mesas]);
   const mesasVisiveis = useMemo(
@@ -446,8 +449,13 @@ export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, geren
               {cardapio && podeAtender && sel.ocupada && (
                 <button onClick={() => { setConta({ id: sel.id, nome: sel.nome }); setSelecionada(null); }} className="btn-secundario py-3"><Receipt className="h-4 w-4" /> Ver conta / fechar</button>
               )}
-              {!cardapio && !selChamado && sel.ocupada && podeAtender && (
-                <button onClick={() => liberar(sel.id)} className="btn-secundario py-3">Liberar mesa</button>
+              {podeAtender && (sel.ocupada || selChamado) && (
+                <button
+                  onClick={() => { if (confirm(`Liberar a ${sel.nome}? Use quando o cliente foi embora sem consumir.`)) liberar(sel.id); }}
+                  className="btn-secundario py-3 text-estado-vermelho"
+                >
+                  Liberar mesa (cliente foi embora)
+                </button>
               )}
               <button onClick={() => setSelecionada(null)} className="btn py-3 text-grafite">Fechar</button>
             </div>
@@ -463,6 +471,8 @@ export function PainelGarcom({ tenantId, inicial, recursos, alertaMinutos, geren
           pix={pix}
           comPagamento={comPagamento}
           infinitepay={infinitepay}
+          permiteDinheiro={gerente}
+          onLiberar={async () => { const id = conta.id; setConta(null); await liberar(id); }}
           onFechar={() => setConta(null)}
           onNovoPedido={() => { setComanda(conta); setConta(null); }}
           onFechada={() => { setConta(null); recarregar(); }}

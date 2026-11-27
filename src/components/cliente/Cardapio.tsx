@@ -39,9 +39,12 @@ export function Cardapio({ tenant, mesa, categorias, produtos }: Props) {
 
   const porId = useMemo(() => new Map(produtos.map((p) => [p.id, p])), [produtos]);
 
+  const temMidia = (p: ProdutoPublico) => !!(p.foto_url || p.poster_url || p.video_url);
   function abrir(p: ProdutoPublico) {
-    const i = lista.findIndex((x) => x.id === p.id);
-    setReels({ lista, inicio: Math.max(0, i) });
+    if (!temMidia(p)) return; // sem foto: o item na lista já mostra tudo
+    const comMidia = lista.filter(temMidia);
+    const i = comMidia.findIndex((x) => x.id === p.id);
+    setReels({ lista: comMidia, inicio: Math.max(0, i) });
     enviarEvento(tenant.slug, mesa?.token ?? null, "view_produto", p.id);
   }
 
@@ -101,7 +104,7 @@ export function Cardapio({ tenant, mesa, categorias, produtos }: Props) {
           <li key={p.id}>
             <button
               onClick={() => abrir(p)}
-              className={`card flex w-full gap-3 p-3 text-left transition active:scale-[.99] ${p.disponivel ? "" : "opacity-55"}`}
+              className={`card flex w-full gap-3 p-3 text-left ${temMidia(p) ? "transition active:scale-[.99]" : "cursor-default"} ${p.disponivel ? "" : "opacity-55"}`}
             >
               {(p.foto_url || p.poster_url || p.video_url) && (
               <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-pedra">
@@ -146,6 +149,7 @@ export function Cardapio({ tenant, mesa, categorias, produtos }: Props) {
           token={mesa?.token ?? null}
           onFechar={() => setReels(null)}
           onAbrirOutro={(p) => {
+            if (!temMidia(p)) return;
             const i = reels.lista.findIndex((x) => x.id === p.id);
             if (i >= 0) setReels({ lista: reels.lista, inicio: i });
             else setReels({ lista: [p, ...reels.lista.filter((x) => x.id !== p.id)], inicio: 0 });
